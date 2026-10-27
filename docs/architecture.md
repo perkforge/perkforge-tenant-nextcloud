@@ -20,7 +20,12 @@ Nextcloud and cron run as www-data UID/GID 33, with dropped capabilities,
 RuntimeDefault seccomp and no privilege escalation. The default tenant service
 account has token automount disabled and no application RBAC. CNPG manages its
 own service account and instance-manager permissions. Its API access is separate
-from Nextcloud. Fleet uses a dedicated deployment service account in the
+from Nextcloud. The application GitRepo lives in the dedicated Rancher Fleet workspace
+`fleet-home-nextcloud`, with a namespace-scoped Policy requiring the named
+deployer and disabling namespace creation. A BundleNamespaceMapping selects
+only Home-labeled bundles and maps them to the existing fleet-local/local
+cluster. Other platform GitRepos keep their original workspace and policy.
+Rancher owns the Fleet workspace namespace. Fleet uses a dedicated deployment service account in the
 observed agent namespace cattle-fleet-local-system. It can deploy namespaced
 application objects and Helm release Secrets; it cannot edit quotas, policies,
 namespace labels, Roles, RoleBindings, or cluster resources, and cannot delete

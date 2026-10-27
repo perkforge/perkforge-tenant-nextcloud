@@ -200,6 +200,10 @@ extraManifests:
     issuerRef:
       name: nextcloud-local-selfsigned
       kind: Issuer
+    subject:
+      organizations:
+      - PerkForge Local Lab
+    commonName: nextcloud.local-lab.test
 - apiVersion: v1
   kind: ConfigMap
   metadata:
