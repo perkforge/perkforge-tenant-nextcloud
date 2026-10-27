@@ -103,6 +103,39 @@ nextcloud:
     mountPath: /etc/apache2/mods-enabled/mpm_prefork.conf
     subPath: mpm_prefork.conf
     readOnly: true
+  extraInitContainers:
+  - name: prepare-persistent-directories
+    image: docker.io/library/nextcloud:35.0.2-apache
+    command:
+    - sh
+    - -ec
+    - |
+      umask 007
+      for directory in root html config data custom_apps tmp themes; do
+        mkdir -p "/bootstrap/$directory"
+        test "$(stat -c %u "/bootstrap/$directory")" = "$(id -u)"
+        chmod 0770 "/bootstrap/$directory"
+      done
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 33
+      runAsGroup: 33
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      seccompProfile:
+        type: RuntimeDefault
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+    volumeMounts:
+    - name: nextcloud-main
+      mountPath: /bootstrap
 persistence:
   enabled: true
   storageClass: local-path

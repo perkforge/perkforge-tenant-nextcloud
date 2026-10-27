@@ -74,3 +74,11 @@ The trial web profile permits one Apache request worker, PHP memory_limit=192M
 and a 64-MiB opcode cache. It prioritizes low concurrency within a 512-MiB
 application limit. The capacity script derives limits from the manifests and
 adds 512 MiB reserve; it requires Python3 and PyYAML.
+
+Persistent subdirectories must be owned by UID33 and mode0770. The non-root
+init container creates them before the application subPath mounts. On this first
+rollout, kubelet had already created root-owned 0777 subdirectories, so a scoped
+operator repair changed only their ownership/mode on the application PVC. No
+files were deleted and no privileged application container was introduced.
+The init container fails closed on unexpected existing directory ownership;
+recover ownership explicitly rather than disabling data-directory checks.
