@@ -82,3 +82,9 @@ operator repair changed only their ownership/mode on the application PVC. No
 files were deleted and no privileged application container was introduced.
 The init container fails closed on unexpected existing directory ownership;
 recover ownership explicitly rather than disabling data-directory checks.
+
+The single-worker Apache profile disables backend KeepAlive: otherwise each
+idle connection can hold the only worker for five seconds, starving parallel
+browser assets and probes. Traefik still terminates client HTTPS. CronJobs use
+concurrencyPolicy:Forbid and a 900-second deadline to accommodate Nextcloud
+35's up-to-14-minute batch processing without starting overlapping jobs.

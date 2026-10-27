@@ -170,7 +170,7 @@ cronjob:
   type: cronjob
   cronjob:
     schedule: '*/5 * * * *'
-    activeDeadlineSeconds: 240
+    activeDeadlineSeconds: 900
     successfulJobsHistoryLimit: 1
     failedJobsHistoryLimit: 1
     securityContext:
@@ -253,3 +253,7 @@ extraManifests:
       ServerLimit 1
       MaxRequestWorkers 1
       MaxConnectionsPerChild 500
+      KeepAlive Off
+      ServerName nextcloud.local-lab.test
+podAnnotations:
+  platform.perkforge.io/apache-profile: serial-no-keepalive-v1
