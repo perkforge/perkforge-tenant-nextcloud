@@ -8,7 +8,7 @@ metadata:
 spec:
   instances: 1
   imageName: ghcr.io/cloudnative-pg/postgresql:17.6
-  primaryUpdateStrategy: supervised
+  primaryUpdateStrategy: unsupervised
   affinity:
     nodeSelector:
       kubernetes.io/hostname: cks-worker

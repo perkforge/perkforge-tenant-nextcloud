@@ -65,3 +65,7 @@ Do not run the current full platform deployment/rebuild scripts while Keycloak
 is paused: their identity checks assume it is running. Resume Keycloak through
 GitOps only after reviewing worker capacity alongside Nextcloud. Do not perform
 offboarding or destructive decommission for Home without explicit approval.
+
+The installed CNPG webhook requires `primaryUpdateStrategy: unsupervised` for
+a single-instance cluster. Upgrade approval is enforced by the operator-owned
+pinned Git revision and change review, not supervised CNPG failover.
