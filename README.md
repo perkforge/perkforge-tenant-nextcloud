@@ -5,8 +5,19 @@ environment `local-vm`. The platform repository provisions its Rancher Project,
 namespace, restricted Pod Security, budgets, network policies, deployment RBAC,
 and Fleet registration. This repository does not create those resources.
 
-Status: prepared and locally rendered; not deployed or persistence-verified.
-LAN routing and development secret bootstrap await operator decisions.
+Status: deployed through Fleet on 2026-10-26. Application and database are
+Ready; certificate-verified HTTPS/WebDAV upload/download and checksum retention
+across an application-pod restart passed. Browser login reached the dashboard
+using a local-only self-signed TLS bypass. The application is a low-concurrency
+VM trial; external LAN-client routing and backup/restore remain unverified.
+
+Open `https://nextcloud.local-lab.test` after mapping that hostname to
+`192.168.122.202` on a client that can route to the VM subnet. The admin username
+is `home-admin`; its password is in the platform checkout's ignored private file
+`.secrets/nextcloud/nextcloud-admin-password`. No password is stored here.
+The public self-signed certificate is exported privately on the workstation at
+`.secrets/nextcloud/public-tls.crt`; verify/import it for normal browser trust.
+Host/router networking and workstation hostname resolution were not changed.
 
 Fleet must scan exactly `bundles/database` and `bundles/nextcloud`. There is no
 root bundle. The first creates one PostgreSQL cluster using the existing CNPG
@@ -32,3 +43,14 @@ make local-path storage highly available or protect against cluster admins.
 Upstream references: [chart](https://nextcloud.github.io/helm/),
 [chart source](https://github.com/nextcloud/helm/tree/nextcloud-9.4.1/charts/nextcloud),
 [Nextcloud system requirements](https://docs.nextcloud.com/server/latest/admin_manual/installation/system_requirements.html).
+
+Observed runtime fixes are encoded in values: UID33 initializes PVC subdirectories
+before subPath mounts, the hostname is explicitly trusted, a startup hook sets
+Cron mode, and Apache KeepAlive is disabled so one request worker does not
+starve browser assets or probes. The first rollout required a one-time scoped
+ownership repair on newly created root-owned subdirectories; no data was reset.
+
+Successful private evidence is under `.evidence/smoke-20261027T011531Z/` and
+`.evidence/browser-20261027T012251Z/`. Earlier failed startup/browser attempts are
+retained as private diagnostics. Broad network isolation, backup restore,
+node-failure recovery and multi-user load are not acceptance claims.

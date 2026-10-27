@@ -28,8 +28,9 @@
    and check restricted Pod Security compatibility. These checks are pending.
    The chart was rendered locally; no Helm install/upgrade bypass is intended.
 
-The paused registration intentionally prevents deployment until these decisions
-are complete. All declarative deployment resources go through Fleet. Secrets
+For a new environment, pause registration until these decisions are complete.
+The current local registration is active and pinned; its Fleet workspace is
+`fleet-home-nextcloud`, mapped only to fleet-local/local. All declarative deployment resources go through Fleet. Secrets
 are the documented out-of-Git bootstrap exception, requiring approval.
 
 ## Acceptance
@@ -51,7 +52,15 @@ Check synthetic tenant access is denied, the deployer cannot mutate policies or
 delete data objects, app token mount is absent, cross-tenant pod traffic is
 denied, and only intended ingress/database/DNS paths work. Platform namespace
 labels and a rendered NetworkPolicy are configuration, not proof of enforcement.
-No live application, restart, upload, policy, or browser acceptance has run yet.
+Current local acceptance: healthy installation, HTTPS certificate verification,
+authenticated WebDAV upload/download, matching checksum after deleting/recreating
+only the app pod, and unchanged application/database PVC/volume identities all
+passed. Browser login reached `/apps/dashboard/` using a fresh context with a
+local-only TLS bypass (no persisted browser state or screenshots). Two subsequent
+scheduled CronJobs completed; initial pre-fix failed job history remains.
+Selected alpha-admin secret and bravo-viewer pod authorization checks returned
+denied for Home. The app runs as UID33 with no service-account token mounted.
+Broader pod-network denial and backup/restore checks have not run.
 
 ## Protected changes
 
@@ -88,3 +97,12 @@ idle connection can hold the only worker for five seconds, starving parallel
 browser assets and probes. Traefik still terminates client HTTPS. CronJobs use
 concurrencyPolicy:Forbid and a 900-second deadline to accommodate Nextcloud
 35's up-to-14-minute batch processing without starting overlapping jobs.
+
+## Access boundary
+
+The workstation is on `192.168.1.183/24`; VM ingress is on the libvirt NAT
+subnet `192.168.122.0/24`. Verification used temporary hostname overrides from
+the workstation. No persistent `/etc/hosts`, router route, port forward, firewall
+or bridge was changed. Other LAN devices need an existing approved route to the
+VM subnet; a DNS entry alone cannot provide that route. Any added network path
+must retain LAN-only access and be separately approved.
