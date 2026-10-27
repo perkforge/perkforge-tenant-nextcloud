@@ -1,0 +1,4 @@
+.secrets/
+.evidence/
+*.tgz
+__pycache__/

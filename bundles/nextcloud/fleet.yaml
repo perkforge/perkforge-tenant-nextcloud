@@ -1,0 +1,13 @@
+name: tenant-home-nextcloud-app
+defaultNamespace: tenant-home-nextcloud
+dependsOn:
+- selector:
+    matchLabels:
+      platform.perkforge.io/component: home-nextcloud-database
+helm:
+  repo: https://nextcloud.github.io/helm/
+  chart: nextcloud
+  version: 9.4.1
+  releaseName: home-nextcloud
+  valuesFiles:
+  - values.yaml

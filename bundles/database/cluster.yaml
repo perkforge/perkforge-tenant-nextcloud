@@ -1,0 +1,34 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: nextcloud-db
+  namespace: tenant-home-nextcloud
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  primaryUpdateStrategy: supervised
+  affinity:
+    nodeSelector:
+      kubernetes.io/hostname: cks-worker
+  storage:
+    storageClass: local-path
+    size: 2Gi
+  bootstrap:
+    initdb:
+      database: nextcloud
+      owner: nextcloud
+      secret:
+        name: nextcloud-db-app
+  postgresql:
+    parameters:
+      shared_buffers: 64MB
+      max_connections: '30'
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 320Mi

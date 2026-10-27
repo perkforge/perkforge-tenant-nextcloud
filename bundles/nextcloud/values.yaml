@@ -1,0 +1,213 @@
+fullnameOverride: nextcloud
+replicaCount: 1
+image:
+  registry: docker.io
+  repository: library/nextcloud
+  tag: 35.0.2-apache
+  flavor: apache
+nodeSelector:
+  kubernetes.io/hostname: cks-worker
+podLabels:
+  platform.perkforge.io/tenant: home
+  platform.perkforge.io/application: nextcloud
+internalDatabase:
+  enabled: false
+externalDatabase:
+  enabled: true
+  type: postgresql
+  host: nextcloud-db-rw.tenant-home-nextcloud.svc.cluster.local
+  database: nextcloud
+  existingSecret:
+    enabled: true
+    secretName: nextcloud-db-app
+    usernameKey: username
+    passwordKey: password
+postgresql:
+  enabled: false
+mariadb:
+  enabled: false
+redis:
+  enabled: false
+externalRedis:
+  enabled: false
+collabora:
+  enabled: false
+rbac:
+  enabled: false
+nginx:
+  enabled: false
+nextcloud:
+  host: nextcloud.local-lab.test
+  trustedDomains:
+  - nextcloud.local-lab.test
+  existingSecret:
+    enabled: true
+    secretName: nextcloud-admin
+    usernameKey: username
+    passwordKey: password
+  strategy:
+    type: Recreate
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 33
+    runAsGroup: 33
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 33
+    runAsGroup: 33
+    fsGroup: 33
+    seccompProfile:
+      type: RuntimeDefault
+    sysctls:
+    - name: net.ipv4.ip_unprivileged_port_start
+      value: '0'
+  extraEnv:
+  - name: APACHE_RUN_DIR
+    value: /tmp/apache2
+  - name: APACHE_LOCK_DIR
+    value: /tmp/apache2
+  - name: APACHE_PID_FILE
+    value: /tmp/apache2.pid
+  - name: PHP_MEMORY_LIMIT
+    value: 192M
+  - name: PHP_UPLOAD_LIMIT
+    value: 256M
+  phpConfigs:
+    zz-perkforge.ini: |
+      memory_limit=192M
+      upload_max_filesize=256M
+      post_max_size=256M
+  configs:
+    perkforge.config.php: |
+      <?php
+      $CONFIG = [
+        'overwriteprotocol' => 'https',
+        'overwrite.cli.url' => 'https://nextcloud.local-lab.test',
+        'trusted_proxies' => ['10.42.0.0/16'],
+        'appstoreenabled' => false,
+        'log_type' => 'errorlog',
+      ];
+  extraVolumes:
+  - name: apache-budget
+    configMap:
+      name: nextcloud-apache-budget
+  extraVolumeMounts:
+  - name: apache-budget
+    mountPath: /etc/apache2/mods-enabled/mpm_prefork.conf
+    subPath: mpm_prefork.conf
+    readOnly: true
+persistence:
+  enabled: true
+  storageClass: local-path
+  accessMode: ReadWriteOnce
+  size: 4Gi
+resources:
+  requests:
+    cpu: 150m
+    memory: 384Mi
+  limits:
+    cpu: 750m
+    memory: 640Mi
+service:
+  type: ClusterIP
+  port: 8080
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+  tls:
+  - secretName: nextcloud-tls
+    hosts:
+    - nextcloud.local-lab.test
+cronjob:
+  enabled: true
+  type: cronjob
+  cronjob:
+    schedule: '*/5 * * * *'
+    activeDeadlineSeconds: 240
+    successfulJobsHistoryLimit: 1
+    failedJobsHistoryLimit: 1
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 33
+      runAsGroup: 33
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      seccompProfile:
+        type: RuntimeDefault
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 128Mi
+    command:
+    - php
+    - -d
+    - memory_limit=96M
+    - -f
+    - /var/www/html/cron.php
+metrics:
+  enabled: false
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 90
+  successThreshold: 1
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 5
+  successThreshold: 1
+extraManifests:
+- apiVersion: cert-manager.io/v1
+  kind: Issuer
+  metadata:
+    name: nextcloud-local-selfsigned
+  spec:
+    selfSigned: {}
+- apiVersion: cert-manager.io/v1
+  kind: Certificate
+  metadata:
+    name: nextcloud-lan
+  spec:
+    secretName: nextcloud-tls
+    dnsNames:
+    - nextcloud.local-lab.test
+    issuerRef:
+      name: nextcloud-local-selfsigned
+      kind: Issuer
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: nextcloud-apache-budget
+  data:
+    mpm_prefork.conf: |
+      StartServers 1
+      MinSpareServers 1
+      MaxSpareServers 1
+      ServerLimit 2
+      MaxRequestWorkers 2
+      MaxConnectionsPerChild 500

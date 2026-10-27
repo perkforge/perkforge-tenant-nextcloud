@@ -1,0 +1,6 @@
+name: tenant-home-nextcloud-database
+labels:
+  platform.perkforge.io/component: home-nextcloud-database
+defaultNamespace: tenant-home-nextcloud
+helm:
+  releaseName: home-nextcloud-db
