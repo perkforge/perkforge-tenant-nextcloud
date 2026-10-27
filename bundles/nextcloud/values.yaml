@@ -88,6 +88,7 @@ nextcloud:
     perkforge.config.php: |
       <?php
       $CONFIG = [
+        'trusted_domains' => ['nextcloud.local-lab.test'],
         'overwriteprotocol' => 'https',
         'overwrite.cli.url' => 'https://nextcloud.local-lab.test',
         'trusted_proxies' => ['10.42.0.0/16'],
@@ -136,6 +137,9 @@ nextcloud:
     volumeMounts:
     - name: nextcloud-main
       mountPath: /bootstrap
+  hooks:
+    before-starting: |
+      php /var/www/html/occ background:cron
 persistence:
   enabled: true
   storageClass: local-path
