@@ -3,6 +3,8 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
+import yaml
 
 MIB = 1024**2
 GIB = 1024**3
@@ -24,7 +26,14 @@ def main():
     metrics = get('--raw', '/apis/metrics.k8s.io/v1beta1/nodes')['items']
     used = {x['metadata']['name']: memory(x['usage']['memory']) for x in metrics}
     problems = []
-    for name, minimum in [('cks-control',512), ('cks-worker',1600)]:
+    root = Path(__file__).resolve().parents[1]
+    app = yaml.safe_load((root / 'bundles/nextcloud/values.yaml').read_text())
+    db = yaml.safe_load((root / 'bundles/database/cluster.yaml').read_text())
+    limit_bytes = memory(app['resources']['limits']['memory']) + memory(db['spec']['resources']['limits']['memory'])
+    if app['cronjob']['enabled']:
+        limit_bytes += memory(app['cronjob']['cronjob']['resources']['limits']['memory'])
+    worker_min = (limit_bytes + 512*MIB + MIB - 1) // MIB
+    for name, minimum in [('cks-control',512), ('cks-worker',worker_min)]:
         node = next(x for x in nodes if x['metadata']['name'] == name)
         conditions = {x['type']:x['status'] for x in node['status']['conditions']}
         if conditions.get('Ready') != 'True' or any(conditions.get(k) != 'False' for k in ['MemoryPressure','DiskPressure','PIDPressure']):

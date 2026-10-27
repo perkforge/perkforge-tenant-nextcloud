@@ -83,6 +83,7 @@ nextcloud:
       memory_limit=192M
       upload_max_filesize=256M
       post_max_size=256M
+      opcache.memory_consumption=64
   configs:
     perkforge.config.php: |
       <?php
@@ -113,7 +114,7 @@ resources:
     memory: 384Mi
   limits:
     cpu: 750m
-    memory: 640Mi
+    memory: 512Mi
 service:
   type: ClusterIP
   port: 8080
@@ -208,6 +209,6 @@ extraManifests:
       StartServers 1
       MinSpareServers 1
       MaxSpareServers 1
-      ServerLimit 2
-      MaxRequestWorkers 2
+      ServerLimit 1
+      MaxRequestWorkers 1
       MaxConnectionsPerChild 500

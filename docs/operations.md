@@ -10,8 +10,8 @@
    VM ingress. DNS/hosts entries must resolve to that reachable private address.
    No router, workstation firewall, bridging, or disk changes are implicit.
 3. Measure fresh node memory and worker free disk. The proposed concurrent
-   container memory limits total 1088 MiB (640 app + 320 database + 128 cron).
-   Require at least 1600 MiB worker headroom and 512 MiB control headroom before
+   container memory limits total 960 MiB (512 app + 320 database + 128 cron).
+   Require at least 1472 MiB worker headroom and 512 MiB control headroom before
    starting, then watch startup and upload working sets. This budget is an
    operator gate, not a guarantee against OOM or off-container overhead. Do not
    increase VM RAM or restart Keycloak concurrently without a capacity review.
@@ -69,3 +69,8 @@ offboarding or destructive decommission for Home without explicit approval.
 The installed CNPG webhook requires `primaryUpdateStrategy: unsupervised` for
 a single-instance cluster. Upgrade approval is enforced by the operator-owned
 pinned Git revision and change review, not supervised CNPG failover.
+
+The trial web profile permits one Apache request worker, PHP memory_limit=192M
+and a 64-MiB opcode cache. It prioritizes low concurrency within a 512-MiB
+application limit. The capacity script derives limits from the manifests and
+adds 512 MiB reserve; it requires Python3 and PyYAML.
