@@ -11,13 +11,19 @@ across an application-pod restart passed. Browser login reached the dashboard
 using a local-only self-signed TLS bypass. The application is a low-concurrency
 VM trial; external LAN-client routing and backup/restore remain unverified.
 
-Open `https://nextcloud.local-lab.test` after mapping that hostname to
-`192.168.122.202` on a client that can route to the VM subnet. The admin username
-is `home-admin`; its password is in the platform checkout's ignored private file
-`.secrets/nextcloud/nextcloud-admin-password`. No password is stored here.
-The public self-signed certificate is exported privately on the workstation at
-`.secrets/nextcloud/public-tls.crt`; verify/import it for normal browser trust.
-Host/router networking and workstation hostname resolution were not changed.
+The user confirmed that login is working. Open `https://nextcloud.local-lab.test`;
+its last observed workstation resolution is `192.168.122.201`. Both `.201` and
+`.202` ingress addresses accepted authenticated WebDAV checks. Other clients
+still require a private route to the VM subnet and correct hostname resolution.
+The admin username is `home-admin`, not `admin`; its password is in the platform
+checkout's ignored file `.secrets/nextcloud/nextcloud-admin-password`. No password
+is stored here. The public self-signed certificate is exported in the platform
+checkout at `.secrets/nextcloud/public-tls.crt`; verify/import it for normal trust.
+The assistant did not change host/router networking or hostname resolution.
+
+Start with [HANDOFF.md](HANDOFF.md) when resuming work. The platform intentionally
+pins tested workload commit `3feb9b09686d5e1e08e9bf6616f6126335a1653f`;
+later documentation commits on this repo's `main` do not change that workload.
 
 Fleet must scan exactly `bundles/database` and `bundles/nextcloud`. There is no
 root bundle. The first creates one PostgreSQL cluster using the existing CNPG

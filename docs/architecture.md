@@ -49,7 +49,8 @@ unreviewed major database or application upgrades.
 
 Storage is explicitly local-path, WaitForFirstConsumer, Delete reclaim policy.
 The PVC retains data through application pod deletion and recreation on the
-same healthy worker; this remains unverified until the acceptance exercise.
+same healthy worker; this was verified by upload/checksum comparison across an
+application-pod restart. This does not validate database-pod or node recovery.
 It cannot move data to another node. Worker failure leaves the application
 unavailable; worker disk loss or lab rebuild loses both files and database.
 The storage quota limits requested capacity, not necessarily bytes written to

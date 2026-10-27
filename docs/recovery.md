@@ -27,7 +27,8 @@ schema verification as documented for that pinned version. Validate login,
 file checksums, background jobs, and data consistency before switching ingress.
 Record RPO/RTO from the exercise rather than claiming targets were met.
 
-Pod restart: expect PVCs to bind on cks-worker and reuse data. Node outage: wait
+Application-pod restart was verified to retain an uploaded file and the same
+PVC/volume identities on cks-worker. This is not a backup or restore exercise. Node outage: wait
 for the same node/disk recovery. Lost worker disk: restore both data sets from an
 external backup; a rescheduled pod does not recover local-path content.
 
