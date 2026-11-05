@@ -1,3 +1,7 @@
+> Historical Fleet/VM trial evidence. For the suspended physical Flux proposal,
+> see [physical-deployment.md](physical-deployment.md).
+> These procedures do not authorize or describe the current physical deployment.
+
 # Operations
 
 Read [HANDOFF.md](../HANDOFF.md) for current state and approval boundaries, and

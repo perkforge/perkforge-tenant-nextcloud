@@ -1,0 +1,44 @@
+{{- if eq .Values.storageClass "REVIEW_REQUIRED" }}
+{{- fail "Select an operator-reviewed durable StorageClass before rendering data resources" }}
+{{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nextcloud-files
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.storageClass | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.filesSize | quote }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: nextcloud-db
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  instances: 1
+  imageName: {{ .Values.image | quote }}
+  enableSuperuserAccess: false
+  primaryUpdateStrategy: unsupervised
+  affinity:
+    nodeSelector: {{ .Values.nodeSelector | toJson }}
+  storage:
+    storageClass: {{ .Values.storageClass | quote }}
+    size: {{ .Values.databaseSize | quote }}
+  bootstrap:
+    initdb:
+      database: nextcloud
+      owner: nextcloud
+      secret: {name: nextcloud-db-app}
+  postgresql:
+    parameters:
+      shared_buffers: 64MB
+      max_connections: '30'
+  resources:
+    requests: {cpu: 100m, memory: 192Mi}
+    limits: {cpu: 500m, memory: 320Mi}

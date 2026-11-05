@@ -1,4 +1,12 @@
-# PerkForge protected Nextcloud tenant
+# PerkForge Nextcloud tenant
+
+The physical Flux deployment proposal is [docs/physical-deployment.md](docs/physical-deployment.md).
+It is suspended, unenrolled and blocked on accepted storage, tenant foundations
+and backup/restore decisions. No household data import is included.
+
+The text below records the historical Fleet/VM trial; it is not current physical
+cluster health or an active deployment procedure.
+
 
 Application configuration for tenant `home`, namespace `tenant-home-nextcloud`,
 environment `local-vm`. The platform repository provisions its Rancher Project,

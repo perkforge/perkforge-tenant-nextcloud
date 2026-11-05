@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tenant-home-nextcloud-config
+resources:
+- ../../base
+configMapGenerator:
+- name: nextcloud-cluster
+  files: [values.yaml=app-values.yaml]
+- name: nextcloud-data-cluster
+  files: [values.yaml=data-values.yaml]
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+commonAnnotations:
+  platform.perkforge.io/cluster: local
+  platform.perkforge.io/environment: local
+  platform.perkforge.io/profile: il2

@@ -1,0 +1,54 @@
+# Enrollment supplies sources and scoped identities. Nothing is active by default.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nextcloud-data
+spec:
+  suspend: true
+  interval: 10m
+  timeout: 10m
+  releaseName: nextcloud-data
+  targetNamespace: tenant-home-nextcloud
+  storageNamespace: tenant-home-nextcloud-release
+  serviceAccountName: nextcloud-deployer
+  chart:
+    spec:
+      chart: ./charts/data
+      reconcileStrategy: Revision
+      sourceRef: {kind: GitRepository, name: tenant-nextcloud}
+  install:
+    createNamespace: false
+    remediation: {retries: 0}
+  upgrade:
+    remediation: {retries: 0}
+  valuesFrom:
+  - {kind: ConfigMap, name: nextcloud-data-defaults, valuesKey: values.yaml}
+  - {kind: ConfigMap, name: nextcloud-data-cluster, valuesKey: values.yaml}
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nextcloud
+spec:
+  suspend: true
+  interval: 10m
+  timeout: 15m
+  releaseName: nextcloud
+  targetNamespace: tenant-home-nextcloud
+  storageNamespace: tenant-home-nextcloud-release
+  serviceAccountName: nextcloud-deployer
+  dependsOn:
+  - name: nextcloud-data
+  chart:
+    spec:
+      chart: nextcloud
+      version: 9.4.1
+      sourceRef: {kind: HelmRepository, name: nextcloud-upstream}
+  install:
+    createNamespace: false
+    remediation: {retries: 0}
+  upgrade:
+    remediation: {retries: 0}
+  valuesFrom:
+  - {kind: ConfigMap, name: nextcloud-defaults, valuesKey: values.yaml}
+  - {kind: ConfigMap, name: nextcloud-cluster, valuesKey: values.yaml}

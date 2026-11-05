@@ -1,0 +1,5 @@
+# Proposed PVC requests, not measured capacity. Revalidate after SSD relocation.
+storageClass: longhorn
+filesSize: 32Gi
+databaseSize: 16Gi
+nodeSelector: {storage.perkforge.io/worker: 'true'}

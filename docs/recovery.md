@@ -1,3 +1,7 @@
+> Historical Fleet/VM trial evidence. For the suspended physical Flux proposal,
+> see [physical-deployment.md](physical-deployment.md).
+> These procedures do not authorize or describe the current physical deployment.
+
 # Backup and recovery
 
 No backup destination, schedule, retention policy, or successful restore exists
