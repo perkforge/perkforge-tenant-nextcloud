@@ -177,6 +177,15 @@ cronjob:
     - memory_limit=96M
     - -f
     - /var/www/html/cron.php
+    affinity:
+      podAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: nextcloud
+              app.kubernetes.io/instance: nextcloud
+              app.kubernetes.io/component: app
+          topologyKey: kubernetes.io/hostname
 metrics:
   enabled: false
 startupProbe:
@@ -223,3 +232,22 @@ extraManifests:
       KeepAlive Off
 
       '
+- |
+  {{- if eq .Values.filesStorage.storageClass "REVIEW_REQUIRED" }}
+  {{- fail "Select an operator-reviewed durable StorageClass before rendering files resources" }}
+  {{- end }}
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: nextcloud-files
+    annotations:
+      helm.sh/resource-policy: keep
+  spec:
+    accessModes: [ReadWriteOnce]
+    storageClassName: {{ .Values.filesStorage.storageClass | quote }}
+    resources:
+      requests:
+        storage: {{ .Values.filesStorage.size | quote }}
+filesStorage:
+  storageClass: REVIEW_REQUIRED
+  size: 4Gi

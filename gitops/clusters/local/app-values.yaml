@@ -12,3 +12,6 @@ ingress:
   tls:
   - secretName: nextcloud-tls
     hosts: [nextcloud.perkforge.home.arpa]
+
+# Proposed request, not measured capacity. Created with its first consumer.
+filesStorage: {storageClass: longhorn, size: 32Gi}

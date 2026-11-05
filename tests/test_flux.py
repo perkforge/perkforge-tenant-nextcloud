@@ -25,6 +25,8 @@ class FluxContract(unittest.TestCase):
             spec = obj['spec']
             self.assertTrue(spec['suspend'])
             self.assertFalse(spec['install']['createNamespace'])
+            for action in ['install', 'upgrade']:
+                self.assertFalse(spec[action].get('disableWait', False))
             self.assertEqual(spec['serviceAccountName'], 'nextcloud-deployer')
             self.assertEqual(spec['storageNamespace'], 'tenant-home-nextcloud-release')
             self.assertEqual(spec['targetNamespace'], 'tenant-home-nextcloud')
@@ -46,7 +48,7 @@ class FluxContract(unittest.TestCase):
                 helm, 'template', 'nextcloud', chart, '--namespace', 'tenant-home-nextcloud',
                 '-f', str(ROOT / defaults), '-f', str(ROOT / cluster)], text=True)))
         app = render(chart, 'gitops/base/app-values.yaml', 'gitops/clusters/local/app-values.yaml')
-        self.assertFalse(any(x['kind'] in {'Namespace', 'Role', 'RoleBinding', 'Secret', 'PersistentVolumeClaim'} for x in app))
+        self.assertFalse(any(x['kind'] in {'Namespace', 'Role', 'RoleBinding', 'Secret'} for x in app))
         deploy = next(x for x in app if x['kind'] == 'Deployment')
         pod = deploy['spec']['template']['spec']
         self.assertEqual(deploy['spec']['strategy']['type'], 'Recreate')
@@ -58,13 +60,23 @@ class FluxContract(unittest.TestCase):
         cron = next(x for x in app if x['kind'] == 'CronJob')
         self.assertEqual(cron['spec']['concurrencyPolicy'], 'Forbid')
         self.assertEqual(cron['spec']['jobTemplate']['spec']['template']['spec']['nodeSelector'], pod['nodeSelector'])
+        cron_pod = cron['spec']['jobTemplate']['spec']['template']['spec']
+        term, = cron_pod['affinity']['podAffinity']['requiredDuringSchedulingIgnoredDuringExecution']
+        self.assertEqual(term['topologyKey'], 'kubernetes.io/hostname')
+        labels = term['labelSelector']['matchLabels']
+        self.assertTrue(all(pod_label == deploy['spec']['template']['metadata']['labels'][key] for key, pod_label in labels.items()))
+        self.assertEqual(labels['app.kubernetes.io/component'], 'app')
+        self.assertFalse(all(cron['spec']['jobTemplate']['spec']['template']['metadata']['labels'].get(key) == value for key, value in labels.items()))
+        self.assertNotIn('nodeName', pod)
+        self.assertNotIn('nodeName', cron_pod)
         ingress = next(x for x in app if x['kind'] == 'Ingress')
         self.assertEqual(ingress['spec']['tls'][0]['secretName'], 'nextcloud-tls')
         data = render(str(ROOT / 'charts/data'), 'gitops/base/data-values.yaml', 'gitops/clusters/local/data-values.yaml')
-        self.assertEqual({x['kind'] for x in data}, {'Cluster', 'PersistentVolumeClaim'})
+        self.assertEqual({x['kind'] for x in data}, {'Cluster'})
         for obj in data:
             self.assertEqual(obj['metadata']['annotations']['helm.sh/resource-policy'], 'keep')
-        claim = next(x for x in data if x['kind'] == 'PersistentVolumeClaim')
+        claim = next(x for x in app if x['kind'] == 'PersistentVolumeClaim')
+        self.assertEqual(claim['metadata']['annotations']['helm.sh/resource-policy'], 'keep')
         self.assertEqual(claim['spec']['storageClassName'], 'longhorn')
         self.assertEqual(claim['spec']['resources']['requests']['storage'], '32Gi')
         db = next(x for x in data if x['kind'] == 'Cluster')
@@ -73,6 +85,10 @@ class FluxContract(unittest.TestCase):
         missing = subprocess.run([helm, 'template', 'data', str(ROOT / 'charts/data')], capture_output=True, text=True)
         self.assertNotEqual(missing.returncode, 0)
         self.assertIn('operator-reviewed durable StorageClass', missing.stderr)
+        missing_files = subprocess.run([helm, 'template', 'nextcloud', chart,
+            '-f', str(ROOT / 'gitops/base/app-values.yaml')], capture_output=True, text=True)
+        self.assertNotEqual(missing_files.returncode, 0)
+        self.assertIn('operator-reviewed durable StorageClass', missing_files.stderr)
 
 if __name__ == '__main__':
     unittest.main()

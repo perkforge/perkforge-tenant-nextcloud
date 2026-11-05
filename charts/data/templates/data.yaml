@@ -1,19 +1,6 @@
 {{- if eq .Values.storageClass "REVIEW_REQUIRED" }}
 {{- fail "Select an operator-reviewed durable StorageClass before rendering data resources" }}
 {{- end }}
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: nextcloud-files
-  annotations:
-    helm.sh/resource-policy: keep
-spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: {{ .Values.storageClass | quote }}
-  resources:
-    requests:
-      storage: {{ .Values.filesSize | quote }}
----
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:

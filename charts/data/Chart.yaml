@@ -1,4 +1,4 @@
 apiVersion: v2
 name: nextcloud-data
 version: 0.1.0
-description: Tenant-local retained files claim and CloudNativePG database
+description: Tenant-local retained CloudNativePG database

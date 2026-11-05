@@ -37,8 +37,9 @@ CNPG needs instance-manager access to Kubernetes; denying all API access to ever
 Pod would break it. Grant only its observed requirements, not app token access.
 No public ingress, router forwarding, SSO, Redis or external storage is enabled.
 
-The data HelmRelease owns a retained files PVC and CNPG Cluster. The app uses
-that existing claim and existing Secrets. Helm storage is separate from runtime
+The data HelmRelease owns only the retained CNPG Cluster. The app release owns
+the retained files PVC alongside its consuming Deployment, using the existingClaim
+setting to share it with cron and preexisting Secrets. Helm storage is separate from runtime
 credentials. `helm.sh/resource-policy: keep`, `prune: false` in the future
 enrollment Kustomization, and denied direct PVC/Cluster deletion reduce accidental
 loss; they do not prevent every controller-mediated deletion or admin action.
@@ -65,6 +66,21 @@ No default StorageClass fallback, local-path fallback, formatting, relocation or
 storage migration is supplied by this PR. The reusable data chart refuses to
 render without an explicit reviewed class selection.
 
+The files PVC belongs to the app release: placing a WaitForFirstConsumer PVC in
+an earlier release with normal Helm waits creates a cycle (data waits for claim
+binding, app waits for data, binding waits for app). Keep install/upgrade waits
+enabled; the database-only release has its own CNPG-managed consumer. See
+[Kubernetes binding semantics](https://kubernetes.io/docs/concepts/storage/storage-classes/#volume-binding-mode)
+and [Flux Helm waits/dependencies](https://fluxcd.io/flux/components/helm/helmreleases/).
+
+Cron has required Pod affinity to this release's app component on
+`kubernetes.io/hostname`, scoped to its own namespace by Kubernetes defaults.
+Its shared worker selector alone cannot co-locate RWO users. Without a web pod,
+cron waits rather than attaching the volume on another worker. Affinity is
+ignored during execution: drain/recovery must quiesce existing cron writers before
+moving the web workload, then verify detach/reattach. Do not claim live failover
+from an offline render. The selector deliberately excludes cron itself.
+
 Longhorn replicas/snapshots are not an independent backup. A single Nextcloud pod
 and single PostgreSQL instance do not provide application/database HA; test RWO
 reattachment and recovery separately after storage acceptance.
@@ -81,11 +97,16 @@ reattachment and recovery separately after storage acceptance.
    The Nextcloud DB connection currently retains historical chart defaults;
    review encrypted database transport and CA/hostname validation before activation.
 4. Recheck the rendered data resources and budget; unpause only the data release
-   under separate live approval. Verify files PVC Bound and CNPG Cluster Ready,
-   bootstrap credentials and actual volume replication. A HelmRelease Ready alone
+   under separate live approval. Verify CNPG Cluster Ready, its database claim
+   Bound, bootstrap credentials and actual database-volume replication. The files
+   PVC is created later with the app; do not require it Bound before app activation.
+   A HelmRelease Ready alone
    does not establish readiness of a custom CNPG resource. Keep app paused until
    these checks pass. On failure preserve resources and diagnose; no reset.
-5. Unpause app only after the data gate. Verify private certificate-trusted HTTPS,
+5. Unpause app only after the database gate. The app release creates its retained
+   files PVC and web Deployment together, allowing WaitForFirstConsumer binding.
+   Verify files PVC Bound and healthy replication before accepting app readiness.
+   Verify private certificate-trusted HTTPS,
    login, scheduled cron, synthetic WebDAV checksum retention over app restart,
    and denied tenant-to-tenant network/authorization paths. Confirm no app token.
 6. Complete paired backup and isolated restore below before real data. Record
