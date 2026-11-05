@@ -14,6 +14,7 @@ spec:
   primaryUpdateStrategy: unsupervised
   affinity:
     nodeSelector: {{ .Values.nodeSelector | toJson }}
+    nodeAffinity: {{ .Values.nodeAffinity | toJson }}
   storage:
     storageClass: {{ .Values.storageClass | quote }}
     size: {{ .Values.databaseSize | quote }}
@@ -23,6 +24,10 @@ spec:
       owner: nextcloud
       secret: {name: nextcloud-db-app}
   postgresql:
+    # User rules precede CNPG's broad default host rule. Reject plaintext for all users.
+    pg_hba:
+    - hostnossl all all all reject
+    - hostssl nextcloud nextcloud all scram-sha-256
     parameters:
       shared_buffers: 64MB
       max_connections: '30'

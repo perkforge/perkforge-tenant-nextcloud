@@ -1,5 +1,11 @@
-# Requires reviewed/released platform #184 and accepted dedicated SSD tier.
+# Dedicated SSD tier accepted on platform v0.19.0; recheck placement at allocation.
 # Proposed PVC requests, not measured capacity. Revalidate after SSD relocation.
 storageClass: longhorn-dedicated
 databaseSize: 16Gi
 nodeSelector: {storage.perkforge.io/worker: 'true'}
+nodeAffinity:
+  preferredDuringSchedulingIgnoredDuringExecution:
+  - weight: 100
+    preference:
+      matchExpressions:
+      - {key: kubernetes.io/hostname, operator: In, values: [worker-2]}

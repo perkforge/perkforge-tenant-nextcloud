@@ -1,6 +1,13 @@
-# Requires reviewed/released platform #184 and accepted dedicated SSD tier.
+# Dedicated SSD tier accepted on platform v0.19.0; recheck placement at allocation.
 # Proposed private route. TLS, DNS and routing are enrollment/operator prerequisites.
 nodeSelector: {storage.perkforge.io/worker: 'true'}
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      preference:
+        matchExpressions:
+        - {key: kubernetes.io/hostname, operator: In, values: [worker-2]}
 nextcloud:
   host: nextcloud.perkforge.home.arpa
   trustedDomains: [nextcloud.perkforge.home.arpa]

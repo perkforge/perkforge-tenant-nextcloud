@@ -78,6 +78,20 @@ class FluxContract(unittest.TestCase):
         self.assertFalse(all(cron['spec']['jobTemplate']['spec']['template']['metadata']['labels'].get(key) == value for key, value in labels.items()))
         self.assertNotIn('nodeName', pod)
         self.assertNotIn('nodeName', cron_pod)
+        preferred = pod['affinity']['nodeAffinity']['preferredDuringSchedulingIgnoredDuringExecution']
+        self.assertEqual(preferred[0]['preference']['matchExpressions'][0]['values'], ['worker-2'])
+        for p in [pod, cron_pod]:
+            for c in p['containers']:
+                self.assertIn('@sha256:', c['image'])
+                env = {e['name']: e for e in c['env']}
+                self.assertEqual(env['PGSSLMODE']['value'], 'verify-full')
+                self.assertEqual(env['PGSSLROOTCERT']['value'], '/etc/nextcloud-postgres-ca/ca.crt')
+                self.assertIn({'name': 'postgres-ca', 'mountPath': '/etc/nextcloud-postgres-ca', 'readOnly': True}, c['volumeMounts'])
+            self.assertTrue(any(v.get('configMap', {}).get('name') == 'nextcloud-db-ca' for v in p['volumes']))
+        tls = load('gitops/base/app-values.yaml')['nextcloud']['configs']['postgres-tls.config.php']
+        self.assertIn("'pgsql_ssl'", tls)
+        self.assertIn("'mode' => 'verify-full'", tls)
+        self.assertEqual(prepare['image'], pod['containers'][0]['image'])
         ingress = next(x for x in app if x['kind'] == 'Ingress')
         self.assertEqual(ingress['spec']['tls'][0]['secretName'], 'nextcloud-tls')
         data = render(str(ROOT / 'charts/data'), 'gitops/base/data-values.yaml', 'gitops/clusters/local/data-values.yaml')
@@ -91,6 +105,10 @@ class FluxContract(unittest.TestCase):
         db = next(x for x in data if x['kind'] == 'Cluster')
         self.assertEqual(db['spec']['storage']['storageClass'], 'longhorn-dedicated')
         self.assertFalse(db['spec']['enableSuperuserAccess'])
+        self.assertIn('@sha256:', db['spec']['imageName'])
+        self.assertEqual(db['spec']['storage']['size'], '16Gi')
+        self.assertEqual(db['spec']['postgresql']['pg_hba'][0], 'hostnossl all all all reject')
+        self.assertIn('worker-2', str(db['spec']['affinity']['nodeAffinity']))
         missing = subprocess.run([helm, 'template', 'data', str(ROOT / 'charts/data')], capture_output=True, text=True)
         self.assertNotEqual(missing.returncode, 0)
         self.assertIn('operator-reviewed durable StorageClass', missing.stderr)

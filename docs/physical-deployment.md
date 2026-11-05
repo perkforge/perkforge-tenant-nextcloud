@@ -49,19 +49,19 @@ authority; namespace-only RBAC alone is insufficient isolation.
 ## Minimal local values and storage gate
 
 `gitops/clusters/local` selects only the private hostname/ingress, prepared worker
-label and proposed storage requests. It contains no disk paths, UUIDs, hostnames
-or IP addresses. The shared values retain the tested restricted UID33 initialization,
+label, logical node preference and pilot storage requests. It contains no disk
+paths, UUIDs or physical IP addresses. The shared values retain restricted UID33 initialization,
 serial Apache profile, Recreate/RWO strategy and non-overlapping five-minute cron.
 This remains a low-concurrency starting profile, not accepted household capacity.
 
-The local selection explicitly requires proposed `longhorn-dedicated` from
-[platform draft #184](https://github.com/perkforge/perkforge-platform/pull/184),
-inspected at `ec7ad215c654524d802f1449e50641024c228057`. Both files and database
-use that exact class; generic `longhorn` cannot guarantee dedicated SSD placement.
-This is an UNRESOLVED cross-repository dependency, not an available storage claim:
-#184 is draft, unmerged and its class is not selected by a cluster root. Before
-allocation, review/merge/release its final implementation and explicitly select
-its prerequisites; recheck the contract if the reviewed design changes. The class
+The local selection requires `longhorn-dedicated`, accepted on the physical cluster
+at platform v0.19.0 (`31128eff057217a7da740cd82c7c26547f6fdb62`). The guarded
+UUID-based XFS mounts and enabled SSDs passed a dedicated 1Gi write/checksum,
+same-worker recreation and cross-worker reattachment test with two actual SSD
+replicas and RW engine modes. Original volume placement was preserved. This is
+storage acceptance, not Nextcloud or backup/restore acceptance. Both files and
+database use that exact class; generic `longhorn` cannot guarantee SSD placement.
+Recheck current health, free space and the live contract before allocation. The class
 must be nondefault `driver.longhorn.io`, Retain, WaitForFirstConsumer, two V1
 replicas, hard node/disk anti-affinity and `diskSelector: dedicated-storage`.
 
@@ -109,17 +109,23 @@ reattachment and recovery separately after storage acceptance.
 
 ## Ordered future activation (separately approved)
 
-1. Review/merge/release platform #184, explicitly select its dedicated class,
-   and complete SSD move/storage acceptance first. Stop before allocation until
-   that dependency is satisfied; never substitute the generic class.
-   Resolve app/chart/PG17.6 compatibility and image security/digest pins. Existing
-   historical image tags are retained to avoid silently upgrading a database.
+1. Recheck accepted platform v0.19.0 storage health and actual disk placement;
+   never substitute the generic class.
+   Storage acceptance is recorded above. The official chart 9.4.1 archive matches
+   its index SHA256 and declares appVersion 35.0.2. Both images were resolved from
+   their public registries with Linux amd64 manifests and are pinned by immutable
+   multi-architecture index digest. Review support/security before activation;
+   availability and offline rendering do not prove runtime compatibility.
 2. Publish this app only after review; prepare/review the enrollment foundation
    and tag/SHA pin separately. Start source, enrollment and both releases paused.
 3. Deliver existing approved credentials and private TLS trust without printing
    them, and validate quota, controllers and network/authorization boundaries.
-   The Nextcloud DB connection currently retains historical chart defaults;
-   review encrypted database transport and CA/hostname validation before activation.
+   Deliver only the CNPG public CA in runtime ConfigMap `nextcloud-db-ca`, never
+   its signing key. Web/cron mount it read-only at `/etc/nextcloud-postgres-ca`.
+   Native `pgsql_ssl` selects `verify-full`; PGSSLMODE/PGSSLROOTCERT protect initial
+   installer connections too. CNPG rejects plaintext host connections before its
+   default HBA rule. Verify the Service hostname SAN and CA fingerprint before app
+   activation; never weaken hostname checking to make startup pass.
 4. Recheck the rendered data resources and budget; unpause only the data release
    under separate live approval. Verify CNPG Cluster Ready, its database claim
    Bound, bootstrap credentials and actual database-volume replication. The files
@@ -130,6 +136,17 @@ reattachment and recovery separately after storage acceptance.
 5. Unpause app only after the database gate. The app release creates its retained
    files PVC and web Deployment together, allowing WaitForFirstConsumer binding.
    Verify files PVC Bound and healthy replication before accepting app readiness.
+   Run the owner-operated read-only probe in the existing web container:
+
+   ```sh
+   kubectl -n tenant-home-nextcloud exec -i deployment/nextcloud -- php \
+     < scripts/verify_database_tls.php
+   ```
+
+   It verifies a real TLS session and wrong-CA, wrong-hostname and plaintext denials
+   for expected reasons, without database writes or credential output. Its temporary
+   unrelated public CA is removed. This live probe has not run against an undeployed
+   Nextcloud instance.
    Keep the rendered CronJob suspended while web UID33 directory preparation and
    Nextcloud installation complete. Verify web Ready, initialized instance,
    expected persistent-directory ownership and private certificate-trusted HTTPS
@@ -146,6 +163,21 @@ reattachment and recovery separately after storage acceptance.
    later Corey-guided task, not authorized by merge or deployment acceptance.
 
 No merge, publication, offline build or successful CI authorizes these live steps.
+
+The 32Gi files/16Gi database claims are an empty pilot. At review worker-1 had
+280m CPU unreserved and worker-2 1420m; each has six CPUs and about 15.2GiB
+allocatable memory. Web/database request 250m/576Mi combined plus 25m/64Mi during
+cron. Local affinity prefers worker-2 while retaining worker-1 as eligible; cron
+still requires the web node. Recheck CI/rollout headroom before activation. Low
+instantaneous CPU usage is not reserved capacity. Keep the serial Apache/256M
+upload profile initially and measure photo/video behavior before increasing it.
+Expand before household import only after accounting for database, snapshots,
+growth and any future existing-volume migration in the important-data budget.
+Single-excess storage is not selected by this application.
+
+Configuration references: [Nextcloud 35 connection factory](https://github.com/nextcloud/server/blob/stable35/lib/private/DB/ConnectionFactory.php),
+[PostgreSQL TLS verification](https://www.postgresql.org/docs/17/libpq-ssl.html),
+and [Nextcloud 35 requirements](https://github.com/nextcloud/documentation/blob/stable35/admin_manual/installation/system_requirements.rst).
 
 ## Backup and restore readiness
 

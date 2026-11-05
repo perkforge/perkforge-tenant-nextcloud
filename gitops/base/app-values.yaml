@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   registry: docker.io
   repository: library/nextcloud
-  tag: 35.0.2-apache
+  tag: 35.0.2-apache@sha256:d88929dc8386420b8963f86cabb667fdaf733eef9dcf8fc98e226801a32c023c
   flavor: apache
 podLabels:
   platform.perkforge.io/tenant: home
@@ -76,6 +76,10 @@ nextcloud:
     value: 192M
   - name: PHP_UPLOAD_LIMIT
     value: 256M
+  - name: PGSSLMODE
+    value: verify-full
+  - name: PGSSLROOTCERT
+    value: /etc/nextcloud-postgres-ca/ca.crt
   phpConfigs:
     zz-perkforge.ini: 'memory_limit=192M
 
@@ -87,20 +91,32 @@ nextcloud:
 
       '
   configs:
+    postgres-tls.config.php: |
+      <?php
+      $CONFIG = ['pgsql_ssl' => [
+        'mode' => 'verify-full',
+        'rootcert' => '/etc/nextcloud-postgres-ca/ca.crt',
+      ]];
     perkforge.config.php: "<?php\n$CONFIG = [\n  'overwriteprotocol' => 'https',\n\
       \  'appstoreenabled' => false,\n  'log_type' => 'errorlog',\n];\n"
   extraVolumes:
+  - name: postgres-ca
+    configMap:
+      name: nextcloud-db-ca
   - name: apache-budget
     configMap:
       name: nextcloud-apache-budget
   extraVolumeMounts:
+  - name: postgres-ca
+    mountPath: /etc/nextcloud-postgres-ca
+    readOnly: true
   - name: apache-budget
     mountPath: /etc/apache2/mods-enabled/mpm_prefork.conf
     subPath: mpm_prefork.conf
     readOnly: true
   extraInitContainers:
   - name: prepare-persistent-directories
-    image: docker.io/library/nextcloud:35.0.2-apache
+    image: docker.io/library/nextcloud:35.0.2-apache@sha256:d88929dc8386420b8963f86cabb667fdaf733eef9dcf8fc98e226801a32c023c
     command:
     - sh
     - -ec
