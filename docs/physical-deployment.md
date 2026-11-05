@@ -37,6 +37,43 @@ CNPG needs instance-manager access to Kubernetes; denying all API access to ever
 Pod would break it. Grant only its observed requirements, not app token access.
 No public ingress, router forwarding, SSO, Redis or external storage is enabled.
 
+## Owner administration and tenant isolation
+
+Corey remains the platform owner/administrator while Nextcloud runs as an isolated
+tenant. This app does not change cluster-admin, Keycloak platform roles, Rancher,
+API authentication or existing administrator bindings. Platform authority includes
+managing the tenant foundation and recovery; scoped tenant automation does not
+receive that authority. Namespace admission also constrains routine operator
+workloads inside the tenant, but the platform owner retains authority to review
+and change those operator-owned boundaries. Tenant isolation is not a restriction
+on who owns the home cluster.
+
+| Identity | Authority |
+|---|---|
+| Corey's platform-admin identity/recovery kubeconfig | Platform and tenant lifecycle, policy, storage, credentials and recovery |
+| nextcloud-reconciler / nextcloud-deployer | Only the named app resources under the reviewed tenant boundary |
+| Nextcloud web/cron default ServiceAccount | No Kubernetes API token or application RBAC |
+| Corey's Nextcloud application-admin account | Nextcloud users, settings and app administration; no implied cluster access |
+
+For the fresh instance, the operator delivers `nextcloud-admin` username/password
+Secret keys; chart env NEXTCLOUD_ADMIN_USER/PASSWORD feed the official image's
+`occ maintenance:install --admin-user/--admin-pass` path. This creates the initial
+Nextcloud administrator independently of Kubernetes/Keycloak membership. Choose
+Corey's intended local admin username through protected inputs, then verify its
+actual Nextcloud `admin` group and administrator UI after initialization. No
+username/password is guessed or copied from the historical VM. Keep tested local
+admin recovery available; changing the bootstrap Secret is not an existing-user
+password-reset mechanism.
+
+SSO is intentionally absent from this pilot. A later reviewed integration must
+select/pin its supported Nextcloud OIDC/SAML app, create the scoped Keycloak client,
+and explicitly configure and test subject/group/admin mapping. Existing
+`/platform/admins` access to Kubernetes/Rancher does **not** automatically grant
+Nextcloud application admin. Test Corey's intended admin mapping and an ordinary
+household user's non-admin access separately before relying on SSO. Retain local
+recovery access through that change; no global identity or admin grants are changed
+by deploying an isolated tenant.
+
 The data HelmRelease owns only the retained CNPG Cluster. The app release owns
 the retained files PVC alongside its consuming Deployment, using the existingClaim
 setting to share it with cron and preexisting Secrets. Helm storage is separate from runtime
