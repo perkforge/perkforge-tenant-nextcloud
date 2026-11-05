@@ -1,4 +1,5 @@
+# Requires reviewed/released platform #184 and accepted dedicated SSD tier.
 # Proposed PVC requests, not measured capacity. Revalidate after SSD relocation.
-storageClass: longhorn
+storageClass: longhorn-dedicated
 databaseSize: 16Gi
 nodeSelector: {storage.perkforge.io/worker: 'true'}

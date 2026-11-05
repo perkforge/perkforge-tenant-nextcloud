@@ -1,3 +1,4 @@
+# Requires reviewed/released platform #184 and accepted dedicated SSD tier.
 # Proposed private route. TLS, DNS and routing are enrollment/operator prerequisites.
 nodeSelector: {storage.perkforge.io/worker: 'true'}
 nextcloud:
@@ -14,4 +15,4 @@ ingress:
     hosts: [nextcloud.perkforge.home.arpa]
 
 # Proposed request, not measured capacity. Created with its first consumer.
-filesStorage: {storageClass: longhorn, size: 32Gi}
+filesStorage: {storageClass: longhorn-dedicated, size: 32Gi}

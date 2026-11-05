@@ -54,14 +54,28 @@ or IP addresses. The shared values retain the tested restricted UID33 initializa
 serial Apache profile, Recreate/RWO strategy and non-overlapping five-minute cron.
 This remains a low-concurrency starting profile, not accepted household capacity.
 
-The existing platform main at inspection (`babaf4416c3e5929e4956c9986379976b88109fa`)
-already defines `longhorn`, Retain, two replicas and prepared-worker selectors.
-This draft uses that interface, not any unmerged SSD implementation. After SSD
-relocation, explicitly verify the ACTUAL class provisioner, Retain reclaim,
-binding behavior, replica health across workers, scheduling labels, capacity and
-reserved/headroom budgets. The 32Gi files and 16Gi database requests are proposed
-PVC budgets, not observations of disks or usable capacity. Replication, snapshot
-space, existing workloads and rebuild headroom consume additional capacity.
+The local selection explicitly requires proposed `longhorn-dedicated` from
+[platform draft #184](https://github.com/perkforge/perkforge-platform/pull/184),
+inspected at `ec7ad215c654524d802f1449e50641024c228057`. Both files and database
+use that exact class; generic `longhorn` cannot guarantee dedicated SSD placement.
+This is an UNRESOLVED cross-repository dependency, not an available storage claim:
+#184 is draft, unmerged and its class is not selected by a cluster root. Before
+allocation, review/merge/release its final implementation and explicitly select
+its prerequisites; recheck the contract if the reviewed design changes. The class
+must be nondefault `driver.longhorn.io`, Retain, WaitForFirstConsumer, two V1
+replicas, hard node/disk anti-affinity and `diskSelector: dedicated-storage`.
+
+After SSD relocation verify ACTUAL dedicated disks, stable persistent mounts,
+missing-drive/boot behavior, exact disk tags, enabled scheduling, class parameters,
+replica health across workers, scheduling labels, measured capacity and reserved/
+headroom budgets. Class existence alone is insufficient. With allocation approved,
+verify BOTH newly created file/database volumes' replicas actually reside on the
+accepted dedicated SSD disks; do not accept class-name matching as placement proof.
+The 32Gi files and 16Gi database requests are proposed PVC budgets, not observations
+of disks or usable capacity. Replication, snapshot space, existing workloads and
+rebuild headroom consume additional capacity. Keep both HelmReleases suspended
+and STOP before allocation if the reviewed tier is missing or unaccepted. Do not
+substitute generic `longhorn` or relabel existing root disks to make it pass.
 No default StorageClass fallback, local-path fallback, formatting, relocation or
 storage migration is supplied by this PR. The reusable data chart refuses to
 render without an explicit reviewed class selection.
@@ -95,7 +109,9 @@ reattachment and recovery separately after storage acceptance.
 
 ## Ordered future activation (separately approved)
 
-1. Review/merge/release storage work and complete SSD move/storage acceptance first.
+1. Review/merge/release platform #184, explicitly select its dedicated class,
+   and complete SSD move/storage acceptance first. Stop before allocation until
+   that dependency is satisfied; never substitute the generic class.
    Resolve app/chart/PG17.6 compatibility and image security/digest pins. Existing
    historical image tags are retained to avoid silently upgrading a database.
 2. Publish this app only after review; prepare/review the enrollment foundation
