@@ -43,10 +43,10 @@ class FluxContract(unittest.TestCase):
         chart = os.environ.get('NEXTCLOUD_CHART')
         self.assertTrue(chart, 'Set NEXTCLOUD_CHART to the verified upstream 9.4.1 chart directory/archive')
         helm = os.environ.get('HELM', 'helm')
-        def render(chart, defaults, cluster):
+        def render(chart, defaults, cluster, extra=()):
             return list(yaml.safe_load_all(subprocess.check_output([
                 helm, 'template', 'nextcloud', chart, '--namespace', 'tenant-home-nextcloud',
-                '-f', str(ROOT / defaults), '-f', str(ROOT / cluster)], text=True)))
+                '-f', str(ROOT / defaults), '-f', str(ROOT / cluster), *extra], text=True)))
         app = render(chart, 'gitops/base/app-values.yaml', 'gitops/clusters/local/app-values.yaml')
         self.assertFalse(any(x['kind'] in {'Namespace', 'Role', 'RoleBinding', 'Secret'} for x in app))
         deploy = next(x for x in app if x['kind'] == 'Deployment')
@@ -58,7 +58,16 @@ class FluxContract(unittest.TestCase):
             self.assertFalse(container['securityContext']['allowPrivilegeEscalation'])
             self.assertEqual(container['securityContext']['runAsUser'], 33)
         cron = next(x for x in app if x['kind'] == 'CronJob')
+        self.assertTrue(cron['spec']['suspend'], 'Fresh install must not schedule cron before volume initialization')
         self.assertEqual(cron['spec']['concurrencyPolicy'], 'Forbid')
+        prepare = next(x for x in pod['initContainers'] if x['name'] == 'prepare-persistent-directories')
+        self.assertEqual(prepare['volumeMounts'], [{'name': 'nextcloud-main', 'mountPath': '/bootstrap'}])
+        self.assertIn('stat -c %u', prepare['command'][-1])
+        enabled_app = render(chart, 'gitops/base/app-values.yaml', 'gitops/clusters/local/app-values.yaml',
+            ['--set', 'cronjob.cronjob.suspend=false'])
+        enabled_cron = next(x for x in enabled_app if x['kind'] == 'CronJob')
+        self.assertFalse(enabled_cron['spec']['suspend'])
+        self.assertEqual(enabled_cron['spec']['jobTemplate'], cron['spec']['jobTemplate'])
         self.assertEqual(cron['spec']['jobTemplate']['spec']['template']['spec']['nodeSelector'], pod['nodeSelector'])
         cron_pod = cron['spec']['jobTemplate']['spec']['template']['spec']
         term, = cron_pod['affinity']['podAffinity']['requiredDuringSchedulingIgnoredDuringExecution']

@@ -75,7 +75,15 @@ and [Flux Helm waits/dependencies](https://fluxcd.io/flux/components/helm/helmre
 
 Cron has required Pod affinity to this release's app component on
 `kubernetes.io/hostname`, scoped to its own namespace by Kubernetes defaults.
-Its shared worker selector alone cannot co-locate RWO users. Without a web pod,
+Its shared worker selector alone cannot co-locate RWO users. Affinity matches
+Pod placement, not Pod readiness or completed init containers. Therefore the
+CronJob starts with `cronjob.cronjob.suspend: true`. On a fresh volume a concurrent
+cron mount could create missing subPaths through kubelet before the web UID33
+initializer, leaving unexpected owners and failing its strict checks. The pinned
+chart gives cron no directory-preparation init container. Keep cron suspended
+until web directory preparation AND Nextcloud instance initialization succeed.
+See [kubelet subPath creation](https://github.com/kubernetes/kubernetes/blob/v1.36.0/pkg/kubelet/kubelet_pods.go)
+and [CronJob suspension](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-suspension). Without a web pod,
 cron waits rather than attaching the volume on another worker. Affinity is
 ignored during execution: drain/recovery must quiesce existing cron writers before
 moving the web workload, then verify detach/reattach. Do not claim live failover
@@ -106,8 +114,16 @@ reattachment and recovery separately after storage acceptance.
 5. Unpause app only after the database gate. The app release creates its retained
    files PVC and web Deployment together, allowing WaitForFirstConsumer binding.
    Verify files PVC Bound and healthy replication before accepting app readiness.
-   Verify private certificate-trusted HTTPS,
-   login, scheduled cron, synthetic WebDAV checksum retention over app restart,
+   Keep the rendered CronJob suspended while web UID33 directory preparation and
+   Nextcloud installation complete. Verify web Ready, initialized instance,
+   expected persistent-directory ownership and private certificate-trusted HTTPS
+   login. Only then make a separately reviewed GitOps change in local app values
+   setting `cronjob.cronjob.suspend: false`; do not unpause cron with the initial
+   HelmRelease activation. Verify a scheduled job succeeds on the web node.
+   Unsuspending may immediately start a missed run; approve only after the gate.
+   Suspension does not stop already-running Jobs: maintenance/restore must also
+   quiesce existing writers. Repeat this suspension/initialization sequence for
+   any fresh claim or isolated restore. Then verify synthetic WebDAV retention,
    and denied tenant-to-tenant network/authorization paths. Confirm no app token.
 6. Complete paired backup and isolated restore below before real data. Record
    actual capacity/load observations and recovery timings. Household import is a
@@ -155,7 +171,8 @@ NEXTCLOUD_CHART=/path/to/verified/nextcloud-9.4.1.tgz python3 -m unittest discov
 
 `HELM` may point to the Helm executable. Tests build the actual local selection
 and render the pinned upstream chart plus data chart, checking suspension/scoped
-namespaces, worker scheduling, claim sharing, UID33, cron concurrency, private TLS
+namespaces, worker scheduling, claim sharing, UID33, initial cron suspension and
+post-initialization cron rendering, cron concurrency, private TLS
 reference, retained data and rejection of an unselected storage class. They do
 not contact Kubernetes or prove controller admission, isolation, storage capacity,
 upstream image availability, database TLS or backup/recovery success.

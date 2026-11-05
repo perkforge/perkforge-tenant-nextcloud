@@ -150,6 +150,8 @@ cronjob:
   enabled: true
   type: cronjob
   cronjob:
+    # First install: web must finish UID33 directory and instance initialization first.
+    suspend: true
     schedule: '*/5 * * * *'
     activeDeadlineSeconds: 900
     successfulJobsHistoryLimit: 1
