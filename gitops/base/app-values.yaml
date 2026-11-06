@@ -163,15 +163,10 @@ service:
 ingress:
   enabled: false
 cronjob:
-  enabled: true
-  type: cronjob
-  cronjob:
-    # First install: web must finish UID33 directory and instance initialization first.
-    suspend: true
-    schedule: '*/5 * * * *'
-    activeDeadlineSeconds: 900
-    successfulJobsHistoryLimit: 1
-    failedJobsHistoryLimit: 1
+  # Remains disabled until the same-pod policy and runtime acceptance pass.
+  enabled: false
+  type: sidecar
+  sidecar:
     securityContext:
       runAsNonRoot: true
       runAsUser: 33
@@ -190,20 +185,36 @@ cronjob:
         cpu: 250m
         memory: 128Mi
     command:
-    - php
-    - -d
-    - memory_limit=96M
-    - -f
-    - /var/www/html/cron.php
-    affinity:
-      podAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: nextcloud
-              app.kubernetes.io/instance: nextcloud
-              app.kubernetes.io/component: app
-          topologyKey: kubernetes.io/hostname
+    - /bin/sh
+    - -c
+    - |
+      set -u
+      child=
+      stop() {
+        trap '' TERM INT
+        if [ -n "$child" ]; then
+          kill -TERM "$child" 2>/dev/null || :
+          wait "$child" || :
+        fi
+        exit 0
+      }
+      trap stop TERM INT
+      run() {
+        "$@" &
+        child=$!
+        wait "$child"
+        result=$?
+        child=
+        return "$result"
+      }
+      while :; do
+        if php -r '$s=json_decode(@file_get_contents("http://127.0.0.1/status.php",false,stream_context_create(["http"=>["timeout"=>5]])),true);exit(is_array($s)&&($s["installed"]??false)&&!($s["maintenance"]??true)&&!($s["needsDbUpgrade"]??true)?0:1);'; then
+          run timeout --signal=TERM --kill-after=10s 900s php -d memory_limit=96M -f /var/www/html/cron.php || echo "Nextcloud cron failed or exceeded its deadline" >&2
+        else
+          echo "Nextcloud cron waiting for initialized, non-maintenance web status" >&2
+        fi
+        run sleep 300
+      done
 metrics:
   enabled: false
 startupProbe:

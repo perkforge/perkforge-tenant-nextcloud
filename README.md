@@ -1,10 +1,11 @@
 # PerkForge Nextcloud tenant
 
 The physical Flux deployment proposal is [docs/physical-deployment.md](docs/physical-deployment.md).
-It is unenrolled; this candidate enables the web release after database acceptance,
-while cron remains paused. Published v1.0.1 remains the selected database-only stage. The dedicated SSD tier passed platform v0.19.0
-acceptance; tenant foundations, application TLS/runtime acceptance and independent
-backup/restore remain deployment gates. No household data import is included.
+The physical pilot is enrolled and initialized. This candidate corrects the
+separate-Pod cron layout after a shared-volume access interruption; same-Pod
+background execution remains disabled until its tenant policy and runtime
+acceptance pass. Trusted HTTPS, database TLS and synthetic WebDAV checks passed;
+independent backup/restore and household import remain outstanding.
 
 The text below records the historical Fleet/VM trial; it is not current physical
 cluster health or an active deployment procedure.
