@@ -1,9 +1,13 @@
-# Physical Nextcloud tenant: draft, not activated
+# Physical Nextcloud pilot and cron correction
 
-The supported proposal is `gitops/clusters/local`, composed from `gitops/base`.
-Published v1.0.1 enables only the database HelmRelease. This later candidate
-enables web after database acceptance; cron remains suspended. No current platform or enrollment root selects
-this repository. The old `bundles/` inputs and VM operations evidence are
+The supported path is `gitops/clusters/local`, composed from `gitops/base`.
+Published v1.0.2 is the selected initialized web pilot, with its separate CronJob
+suspended. This candidate replaces that cron layout with opt-in same-Pod execution
+and keeps background execution disabled. With defaults, the rendered app objects
+are unchanged except removal of the suspended CronJob; no web template, PVC or
+database change is required. Policy review and runtime acceptance precede enabling
+the sidecar. Publication alone does not promote the app's pinned enrollment.
+The old `bundles/` inputs and VM operations evidence are
 historical; they are preserved unchanged, not a second supported deployment path.
 This proposal deploys a fresh empty instance, not a migration or an import.
 Corey will guide household data housecleaning after deployment; do not mount,
@@ -125,21 +129,48 @@ enabled; the database-only release has its own CNPG-managed consumer. See
 [Kubernetes binding semantics](https://kubernetes.io/docs/concepts/storage/storage-classes/#volume-binding-mode)
 and [Flux Helm waits/dependencies](https://fluxcd.io/flux/components/helm/helmreleases/).
 
-Cron has required Pod affinity to this release's app component on
-`kubernetes.io/hostname`, scoped to its own namespace by Kubernetes defaults.
-Its shared worker selector alone cannot co-locate RWO users. Affinity matches
-Pod placement, not Pod readiness or completed init containers. Therefore the
-CronJob starts with `cronjob.cronjob.suspend: true`. On a fresh volume a concurrent
-cron mount could create missing subPaths through kubelet before the web UID33
-initializer, leaving unexpected owners and failing its strict checks. The pinned
-chart gives cron no directory-preparation init container. Keep cron suspended
-until web directory preparation AND Nextcloud instance initialization succeed.
-See [kubelet subPath creation](https://github.com/kubernetes/kubernetes/blob/v1.36.0/pkg/kubelet/kubelet_pods.go)
-and [CronJob suspension](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-suspension). Without a web pod,
-cron waits rather than attaching the volume on another worker. Affinity is
-ignored during execution: drain/recovery must quiesce existing cron writers before
-moving the web workload, then verify detach/reattach. Do not claim live failover
-from an offline render. The selector deliberately excludes cron itself.
+### Cron correction after pilot acceptance
+
+The physical pilot initialized and passed trusted HTTPS, database TLS and a
+synthetic WebDAV round trip on 2026-11-06. A bounded one-off separate-Pod cron
+Job completed successfully, but the web container then returned filesystem
+permission errors and HTTP403/503. It recovered after one automatic container
+restart. Recurring cron remains paused in the selected live release.
+
+The leading diagnosis is a shared-PVC SELinux label conflict between separate
+Pods: equal UID/GID and same-node affinity do not give two Pods the same MCS
+identity. Recovered process and persistent-directory labels matched again.
+Nonprivileged host journal inspection found no AVC entries, so a host audit
+record is still needed to conclusively attribute the incident. See
+[Kubernetes SELinux volume labeling](https://kubernetes.io/blog/2026/04/22/breaking-changes-in-selinux-volume-labeling/).
+Do not repeat separate-Pod cron as an acceptance test or disable SELinux.
+
+This candidate uses the pinned chart's same-Pod sidecar support, with cron
+**disabled by default** pending review and runtime acceptance. It overrides the
+root-requiring `/cron.sh` with a UID33 shell runner. Both app containers share
+one Pod SELinux identity and the same persistent mounts. The runner checks
+loopback web status for installed=true, maintenance=false and needsDbUpgrade=false
+before each run. It serially executes PHP with a 96MiB memory budget, a 900s
+wall deadline and 10s kill grace, then waits 300s. Failures are logged and retried
+on the next interval; they do not trigger a second concurrent writer. No token,
+exec Role, fixed SELinux label, privilege, host mount or host policy is added.
+A hung or failed runner still needs log monitoring; HTTP readiness alone does
+not prove background-job progress. Stopping the Pod stops both writers, and a
+maintenance/restore still requires explicit quiescence.
+
+Before enabling `cronjob.enabled: true`, publish and apply the separately
+reviewed enrollment policy allowing only the existing web container plus the
+named UID33 `nextcloud-cron` container using the same immutable image. Do not
+allow arbitrary sidecars. Then publish/pin the app change through the existing
+release chain. Use a planned pilot rollout with the retained PVC and Recreate
+strategy; no database or PVC replacement. Verify both containers' matching MCS
+identities, persistent-directory label, web readiness/HTTPS and the retained
+synthetic file checksum throughout at least two successful background runs.
+Check the application's last background-run time, sidecar logs, restart counts,
+SELinux audit records and both Longhorn volumes. Stop and preserve resources on
+any access denial or health regression. Do not restore the separate CronJob or
+work around admission with a live patch. Household import and backup/restore
+acceptance remain separate gates.
 
 Longhorn replicas/snapshots are not an independent backup. A single Nextcloud pod
 and single PostgreSQL instance do not provide application/database HA; test RWO
@@ -192,17 +223,11 @@ reattachment and recovery separately after storage acceptance.
    for expected reasons, without database writes or credential output. Its temporary
    unrelated public CA is removed. This live probe has not run against an undeployed
    Nextcloud instance.
-   Keep the rendered CronJob suspended while web UID33 directory preparation and
-   Nextcloud installation complete. Verify web Ready, initialized instance,
-   expected persistent-directory ownership and private certificate-trusted HTTPS
-   login. Only then make a separately reviewed GitOps change in local app values
-   setting `cronjob.cronjob.suspend: false`; do not unpause cron with the initial
-   HelmRelease activation. Verify a scheduled job succeeds on the web node.
-   Unsuspending may immediately start a missed run; approve only after the gate.
-   Suspension does not stop already-running Jobs: maintenance/restore must also
-   quiesce existing writers. Repeat this suspension/initialization sequence for
-   any fresh claim or isolated restore. Then verify synthetic WebDAV retention,
-   and denied tenant-to-tenant network/authorization paths. Confirm no app token.
+   The old separate CronJob must remain suspended. Use the reviewed same-Pod
+   correction and acceptance gate above before enabling background execution.
+   Verify synthetic WebDAV retention and denied tenant-to-tenant authorization
+   paths. Confirm no app token. Do not infer household readiness from web health.
+
 6. Complete paired backup and isolated restore below before real data. Record
    actual capacity/load observations and recovery timings. Household import is a
    later Corey-guided task, not authorized by merge or deployment acceptance.
@@ -265,7 +290,7 @@ NEXTCLOUD_CHART=/path/to/verified/nextcloud-9.4.1.tgz python3 -m unittest discov
 `HELM` may point to the Helm executable. Tests build the actual local selection
 and render the pinned upstream chart plus data chart, checking suspension/scoped
 namespaces, worker scheduling, claim sharing, UID33, initial cron suspension and
-post-initialization cron rendering, cron concurrency, private TLS
+opt-in same-Pod cron rendering, initialization gating and bounded serial execution, private TLS
 reference, retained data and rejection of an unselected storage class. They do
 not contact Kubernetes or prove controller admission, isolation, storage capacity,
 upstream image availability, database TLS or backup/recovery success.

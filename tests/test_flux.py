@@ -57,37 +57,41 @@ class FluxContract(unittest.TestCase):
         for container in pod['containers'] + pod['initContainers']:
             self.assertFalse(container['securityContext']['allowPrivilegeEscalation'])
             self.assertEqual(container['securityContext']['runAsUser'], 33)
-        cron = next(x for x in app if x['kind'] == 'CronJob')
-        self.assertTrue(cron['spec']['suspend'], 'Fresh install must not schedule cron before volume initialization')
-        self.assertEqual(cron['spec']['concurrencyPolicy'], 'Forbid')
+        self.assertFalse(any(x['kind'] == 'CronJob' for x in app))
+        self.assertEqual([c['name'] for c in pod['containers']], ['nextcloud'])
         prepare = next(x for x in pod['initContainers'] if x['name'] == 'prepare-persistent-directories')
         self.assertEqual(prepare['volumeMounts'], [{'name': 'nextcloud-main', 'mountPath': '/bootstrap'}])
         self.assertIn('stat -c %u', prepare['command'][-1])
         enabled_app = render(chart, 'gitops/base/app-values.yaml', 'gitops/clusters/local/app-values.yaml',
-            ['--set', 'cronjob.cronjob.suspend=false'])
-        enabled_cron = next(x for x in enabled_app if x['kind'] == 'CronJob')
-        self.assertFalse(enabled_cron['spec']['suspend'])
-        self.assertEqual(enabled_cron['spec']['jobTemplate'], cron['spec']['jobTemplate'])
-        self.assertEqual(cron['spec']['jobTemplate']['spec']['template']['spec']['nodeSelector'], pod['nodeSelector'])
-        cron_pod = cron['spec']['jobTemplate']['spec']['template']['spec']
-        term, = cron_pod['affinity']['podAffinity']['requiredDuringSchedulingIgnoredDuringExecution']
-        self.assertEqual(term['topologyKey'], 'kubernetes.io/hostname')
-        labels = term['labelSelector']['matchLabels']
-        self.assertTrue(all(pod_label == deploy['spec']['template']['metadata']['labels'][key] for key, pod_label in labels.items()))
-        self.assertEqual(labels['app.kubernetes.io/component'], 'app')
-        self.assertFalse(all(cron['spec']['jobTemplate']['spec']['template']['metadata']['labels'].get(key) == value for key, value in labels.items()))
+            ['--set', 'cronjob.enabled=true'])
+        self.assertFalse(any(x['kind'] == 'CronJob' for x in enabled_app))
+        enabled_deploy = next(x for x in enabled_app if x['kind'] == 'Deployment')
+        enabled_pod = enabled_deploy['spec']['template']['spec']
+        self.assertEqual([c['name'] for c in enabled_pod['containers']], ['nextcloud', 'nextcloud-cron'])
+        web, cron = enabled_pod['containers']
+        self.assertEqual(cron['image'], web['image'])
+        self.assertEqual(cron['volumeMounts'], [m for m in web['volumeMounts'] if m['name'] != 'nextcloud-hooks'])
+        self.assertEqual(cron['securityContext']['runAsUser'], 33)
+        self.assertFalse(cron['securityContext']['allowPrivilegeEscalation'])
+        self.assertEqual(cron['securityContext']['capabilities']['drop'], ['ALL'])
+        self.assertEqual(cron['resources']['limits']['memory'], '128Mi')
+        command = cron['command'][-1]
+        self.assertNotIn('/cron.sh', command)
+        self.assertIn('timeout --signal=TERM --kill-after=10s 900s', command)
+        self.assertIn('sleep 300', command)
+        self.assertNotIn('cron.php &', command)
+        for field in ['installed', 'maintenance', 'needsDbUpgrade']:
+            self.assertIn(field, command)
         self.assertNotIn('nodeName', pod)
-        self.assertNotIn('nodeName', cron_pod)
         preferred = pod['affinity']['nodeAffinity']['preferredDuringSchedulingIgnoredDuringExecution']
         self.assertEqual(preferred[0]['preference']['matchExpressions'][0]['values'], ['worker-2'])
-        for p in [pod, cron_pod]:
-            for c in p['containers']:
-                self.assertIn('@sha256:', c['image'])
-                env = {e['name']: e for e in c['env']}
-                self.assertEqual(env['PGSSLMODE']['value'], 'verify-full')
-                self.assertEqual(env['PGSSLROOTCERT']['value'], '/etc/nextcloud-postgres-ca/ca.crt')
-                self.assertIn({'name': 'postgres-ca', 'mountPath': '/etc/nextcloud-postgres-ca', 'readOnly': True}, c['volumeMounts'])
-            self.assertTrue(any(v.get('configMap', {}).get('name') == 'nextcloud-db-ca' for v in p['volumes']))
+        for c in enabled_pod['containers']:
+            self.assertIn('@sha256:', c['image'])
+            env = {e['name']: e for e in c['env']}
+            self.assertEqual(env['PGSSLMODE']['value'], 'verify-full')
+            self.assertEqual(env['PGSSLROOTCERT']['value'], '/etc/nextcloud-postgres-ca/ca.crt')
+            self.assertIn({'name': 'postgres-ca', 'mountPath': '/etc/nextcloud-postgres-ca', 'readOnly': True}, c['volumeMounts'])
+        self.assertTrue(any(v.get('configMap', {}).get('name') == 'nextcloud-db-ca' for v in enabled_pod['volumes']))
         tls = load('gitops/base/app-values.yaml')['nextcloud']['configs']['postgres-tls.config.php']
         self.assertIn("'pgsql_ssl'", tls)
         self.assertIn("'mode' => 'verify-full'", tls)
