@@ -13,7 +13,7 @@ def load(path):
 
 
 class FluxContract(unittest.TestCase):
-    def test_suspended_scoped_selection(self):
+    def test_enabled_scoped_selection(self):
         built = subprocess.check_output(['kubectl', 'kustomize', str(ROOT / 'gitops/clusters/local')], text=True)
         objects = list(yaml.safe_load_all(built))
         self.assertEqual({x['kind'] for x in objects}, {'ConfigMap', 'HelmRelease'})
@@ -23,7 +23,7 @@ class FluxContract(unittest.TestCase):
             self.assertEqual(obj['metadata']['namespace'], 'tenant-home-nextcloud-config')
         for obj in releases:
             spec = obj['spec']
-            self.assertEqual(spec['suspend'], obj['metadata']['name'] != 'nextcloud-data')
+            self.assertFalse(spec['suspend'])
             self.assertFalse(spec['install']['createNamespace'])
             for action in ['install', 'upgrade']:
                 self.assertFalse(spec[action].get('disableWait', False))
