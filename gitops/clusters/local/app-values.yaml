@@ -1,0 +1,25 @@
+# Dedicated SSD tier accepted on platform v0.19.0; recheck placement at allocation.
+# Proposed private route. TLS, DNS and routing are enrollment/operator prerequisites.
+nodeSelector: {storage.perkforge.io/worker: 'true'}
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      preference:
+        matchExpressions:
+        - {key: kubernetes.io/hostname, operator: In, values: [worker-2]}
+nextcloud:
+  host: nextcloud.perkforge.home.arpa
+  trustedDomains: [nextcloud.perkforge.home.arpa]
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+  tls:
+  - secretName: nextcloud-tls
+    hosts: [nextcloud.perkforge.home.arpa]
+
+# Proposed request, not measured capacity. Created with its first consumer.
+filesStorage: {storageClass: longhorn-dedicated, size: 32Gi}

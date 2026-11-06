@@ -1,3 +1,7 @@
+> Historical Fleet/VM trial evidence. For the suspended physical Flux proposal,
+> see [docs/physical-deployment.md](docs/physical-deployment.md).
+> These procedures do not authorize or describe the current physical deployment.
+
 # Nextcloud operator handoff
 
 Last updated: 2026-10-26 (America/Chicago; evidence timestamps use UTC).

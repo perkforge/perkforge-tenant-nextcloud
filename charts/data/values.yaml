@@ -1,0 +1,5 @@
+image: ghcr.io/cloudnative-pg/postgresql:17.6
+storageClass: REVIEW_REQUIRED
+databaseSize: 2Gi
+nodeSelector: {}
+nodeAffinity: {}

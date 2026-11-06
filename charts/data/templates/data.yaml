@@ -1,0 +1,36 @@
+{{- if eq .Values.storageClass "REVIEW_REQUIRED" }}
+{{- fail "Select an operator-reviewed durable StorageClass before rendering data resources" }}
+{{- end }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: nextcloud-db
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  instances: 1
+  imageName: {{ .Values.image | quote }}
+  enableSuperuserAccess: false
+  primaryUpdateStrategy: unsupervised
+  affinity:
+    nodeSelector: {{ .Values.nodeSelector | toJson }}
+    nodeAffinity: {{ .Values.nodeAffinity | toJson }}
+  storage:
+    storageClass: {{ .Values.storageClass | quote }}
+    size: {{ .Values.databaseSize | quote }}
+  bootstrap:
+    initdb:
+      database: nextcloud
+      owner: nextcloud
+      secret: {name: nextcloud-db-app}
+  postgresql:
+    # User rules precede CNPG's broad default host rule. Reject plaintext for all users.
+    pg_hba:
+    - hostnossl all all all reject
+    - hostssl nextcloud nextcloud all scram-sha-256
+    parameters:
+      shared_buffers: 64MB
+      max_connections: '30'
+  resources:
+    requests: {cpu: 100m, memory: 192Mi}
+    limits: {cpu: 500m, memory: 320Mi}
