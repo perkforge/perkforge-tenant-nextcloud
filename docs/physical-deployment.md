@@ -1,8 +1,8 @@
 # Physical Nextcloud tenant: draft, not activated
 
 The supported proposal is `gitops/clusters/local`, composed from `gitops/base`.
-The database HelmRelease is enabled for the separately approved data stage; web
-and cron remain suspended. No current platform or enrollment root selects
+Published v1.0.1 enables only the database HelmRelease. This later candidate
+enables web after database acceptance; cron remains suspended. No current platform or enrollment root selects
 this repository. The old `bundles/` inputs and VM operations evidence are
 historical; they are preserved unchanged, not a second supported deployment path.
 This proposal deploys a fresh empty instance, not a migration or an import.
@@ -177,7 +177,8 @@ reattachment and recovery separately after storage acceptance.
    The reviewed data-stage source enables only `nextcloud-data`; pin its published
    release through enrollment/platform before promotion. It creates no web Pod,
    files claim or cron Job. Do not manually unsuspend web against paused Git values.
-5. Unpause app only after the database gate. The app release creates its retained
+5. Publish and select this web-stage candidate only after the database gate;
+   do not manually resume it against the selected v1.0.1 values. The app release creates its retained
    files PVC and web Deployment together, allowing WaitForFirstConsumer binding.
    Verify files PVC Bound and healthy replication before accepting app readiness.
    Run the owner-operated read-only probe in the existing web container:
