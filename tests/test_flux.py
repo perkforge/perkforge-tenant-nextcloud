@@ -58,15 +58,16 @@ class FluxContract(unittest.TestCase):
             self.assertFalse(container['securityContext']['allowPrivilegeEscalation'])
             self.assertEqual(container['securityContext']['runAsUser'], 33)
         self.assertFalse(any(x['kind'] == 'CronJob' for x in app))
-        self.assertEqual([c['name'] for c in pod['containers']], ['nextcloud'])
+        self.assertEqual([c['name'] for c in pod['containers']], ['nextcloud', 'nextcloud-cron'])
         prepare = next(x for x in pod['initContainers'] if x['name'] == 'prepare-persistent-directories')
         self.assertEqual(prepare['volumeMounts'], [{'name': 'nextcloud-main', 'mountPath': '/bootstrap'}])
         self.assertIn('stat -c %u', prepare['command'][-1])
-        enabled_app = render(chart, 'gitops/base/app-values.yaml', 'gitops/clusters/local/app-values.yaml',
-            ['--set', 'cronjob.enabled=true'])
-        self.assertFalse(any(x['kind'] == 'CronJob' for x in enabled_app))
-        enabled_deploy = next(x for x in enabled_app if x['kind'] == 'Deployment')
-        enabled_pod = enabled_deploy['spec']['template']['spec']
+        disabled_app = render(chart, 'gitops/base/app-values.yaml', 'gitops/clusters/local/app-values.yaml',
+            ['--set', 'cronjob.enabled=false'])
+        self.assertFalse(any(x['kind'] == 'CronJob' for x in disabled_app))
+        disabled_deploy = next(x for x in disabled_app if x['kind'] == 'Deployment')
+        self.assertEqual([c['name'] for c in disabled_deploy['spec']['template']['spec']['containers']], ['nextcloud'])
+        enabled_pod = pod
         self.assertEqual([c['name'] for c in enabled_pod['containers']], ['nextcloud', 'nextcloud-cron'])
         web, cron = enabled_pod['containers']
         self.assertEqual(cron['image'], web['image'])

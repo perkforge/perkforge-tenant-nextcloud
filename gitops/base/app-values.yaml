@@ -163,8 +163,8 @@ service:
 ingress:
   enabled: false
 cronjob:
-  # Remains disabled until the same-pod policy and runtime acceptance pass.
-  enabled: false
+  # Enable only after the released tenant policy and bounded same-Pod acceptance.
+  enabled: true
   type: sidecar
   sidecar:
     securityContext:
@@ -209,7 +209,11 @@ cronjob:
       }
       while :; do
         if php -r '$s=json_decode(@file_get_contents("http://127.0.0.1/status.php",false,stream_context_create(["http"=>["timeout"=>5]])),true);exit(is_array($s)&&($s["installed"]??false)&&!($s["maintenance"]??true)&&!($s["needsDbUpgrade"]??true)?0:1);'; then
-          run timeout --signal=TERM --kill-after=10s 900s php -d memory_limit=96M -f /var/www/html/cron.php || echo "Nextcloud cron failed or exceeded its deadline" >&2
+          if run timeout --signal=TERM --kill-after=10s 900s php -d memory_limit=96M -f /var/www/html/cron.php; then
+            echo "Nextcloud cron completed successfully"
+          else
+            echo "Nextcloud cron failed or exceeded its deadline" >&2
+          fi
         else
           echo "Nextcloud cron waiting for initialized, non-maintenance web status" >&2
         fi

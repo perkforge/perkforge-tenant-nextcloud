@@ -14,12 +14,12 @@ RUNNER = yaml.safe_load((ROOT / 'gitops/base/app-values.yaml').read_text())['cro
 
 
 class RunnerGate(unittest.TestCase):
-    def run_runner(self, ready):
+    def run_runner(self, ready, cron_exit=0):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
             scripts = {
                 'php': '#!/bin/sh\nexit "$READY"\n',
-                'timeout': '#!/bin/sh\nprintf "%s\\n" "$*" >> "$TRACE"\nexit 0\n',
+                'timeout': '#!/bin/sh\nprintf "%s\\n" "$*" >> "$TRACE"\nexit "$CRON_EXIT"\n',
                 'sleep': '#!/bin/sh\nkill -TERM "$PPID"\n',
             }
             for name, content in scripts.items():
@@ -27,10 +27,10 @@ class RunnerGate(unittest.TestCase):
                 executable.write_text(content)
                 executable.chmod(0o700)
             trace = folder / 'trace'
-            env = dict(os.environ, PATH=str(folder), READY='0' if ready else '1', TRACE=str(trace))
+            env = dict(os.environ, PATH=str(folder), READY='0' if ready else '1', TRACE=str(trace), CRON_EXIT=str(cron_exit))
             result = subprocess.run(['/bin/sh', '-c', RUNNER], env=env, text=True, capture_output=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)
-            return trace.read_text().splitlines() if trace.exists() else [], result.stderr
+            return trace.read_text().splitlines() if trace.exists() else [], result.stdout + result.stderr
 
     def test_unready_web_never_runs_cron(self):
         runs, log = self.run_runner(False)
@@ -38,8 +38,15 @@ class RunnerGate(unittest.TestCase):
         self.assertIn('waiting for initialized', log)
 
     def test_ready_web_runs_bounded_cron(self):
-        runs, _ = self.run_runner(True)
+        runs, log = self.run_runner(True)
+        self.assertIn('completed successfully', log)
         self.assertEqual(runs, ['--signal=TERM --kill-after=10s 900s php -d memory_limit=96M -f /var/www/html/cron.php'])
+
+    def test_failed_cron_logs_failure_without_immediate_retry(self):
+        runs, log = self.run_runner(True, cron_exit=1)
+        self.assertEqual(len(runs), 1)
+        self.assertIn('failed or exceeded its deadline', log)
+        self.assertNotIn('completed successfully', log)
 
     def test_termination_reaches_active_cron_child(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -1,10 +1,10 @@
 # PerkForge Nextcloud tenant
 
 The physical Flux deployment proposal is [docs/physical-deployment.md](docs/physical-deployment.md).
-The physical pilot is enrolled and initialized. This candidate corrects the
-separate-Pod cron layout after a shared-volume access interruption; same-Pod
-background execution remains disabled until its tenant policy and runtime
-acceptance pass. Trusted HTTPS, database TLS and synthetic WebDAV checks passed;
+The physical pilot is enrolled and initialized. This candidate opts into the released non-root same-Pod cron runner. Select it
+only after the disabled correction rollout, released tenant policy and bounded
+same-Pod acceptance pass; verify sustained web health and real scheduled progress
+after activation. Trusted HTTPS, database TLS and synthetic WebDAV checks passed;
 independent backup/restore and household import remain outstanding.
 
 The text below records the historical Fleet/VM trial; it is not current physical
