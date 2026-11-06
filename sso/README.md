@@ -99,3 +99,19 @@ exact paths are accepted, never a wildcard. The read-only discovery verifier
 compares Nextcloud's actual generated route with that reviewed full callback and
 stops on mismatch before native activation. The generated values provide the
 canonical `overwrite.cli.url` so CLI verification uses the intended HTTPS origin.
+
+## Confirmed owner and future household access
+
+Corey's existing Keycloak identity is intended to retain platform-admin authority
+and receive native admin for this dedicated Nextcloud tenant. Use its verified
+immutable subject for the direct owner role and separate native grant; no new
+identity, username/email linking or inferred platform-group mapping. Keep the
+existing local Nextcloud admin unchanged for independent recovery. Live acceptance
+must prove both Corey's actual native admin access and retained platform access,
+then prove local recovery independently.
+
+Jett is the intended ordinary household user, without native admin. Do not create
+or enroll that account now. Any future household grant needs separate approval,
+exact subject verification and successful ordinary-access/admin-denial tests.
+Recording this design does not authorize activation, credentials or live grants;
+all example run flags and subject selections remain disabled/empty.
