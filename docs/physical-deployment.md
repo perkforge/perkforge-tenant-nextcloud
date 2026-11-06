@@ -1,9 +1,13 @@
-# Physical Nextcloud tenant: draft, not activated
+# Physical Nextcloud pilot and cron correction
 
-The supported proposal is `gitops/clusters/local`, composed from `gitops/base`.
-Published v1.0.1 enables only the database HelmRelease. This later candidate
-enables web after database acceptance; cron remains suspended. No current platform or enrollment root selects
-this repository. The old `bundles/` inputs and VM operations evidence are
+The supported path is `gitops/clusters/local`, composed from `gitops/base`.
+Published v1.0.2 is the selected initialized web pilot, with its separate CronJob
+suspended. This candidate replaces that cron layout with opt-in same-Pod execution
+and keeps background execution disabled. With defaults, the rendered app objects
+are unchanged except removal of the suspended CronJob; no web template, PVC or
+database change is required. Policy review and runtime acceptance precede enabling
+the sidecar. Publication alone does not promote the app's pinned enrollment.
+The old `bundles/` inputs and VM operations evidence are
 historical; they are preserved unchanged, not a second supported deployment path.
 This proposal deploys a fresh empty instance, not a migration or an import.
 Corey will guide household data housecleaning after deployment; do not mount,
