@@ -1,7 +1,8 @@
 # PerkForge Nextcloud tenant
 
 The physical Flux deployment proposal is [docs/physical-deployment.md](docs/physical-deployment.md).
-It is suspended and unenrolled. The dedicated SSD tier passed platform v0.19.0
+It is unenrolled; the database-only stage is enabled in source while web/cron stay
+paused. The dedicated SSD tier passed platform v0.19.0
 acceptance; tenant foundations, application TLS/runtime acceptance and independent
 backup/restore remain deployment gates. No household data import is included.
 
