@@ -1,0 +1,50 @@
+- name: Prepare an offline image context; never contact Nextcloud or download at runtime
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [artifact.yaml]
+  vars:
+    nextcloud_sso_prepare: false
+    nextcloud_sso_archive: /UNCONFIGURED/user_oidc-v8.13.0.tar.gz
+    nextcloud_sso_output: /UNCONFIGURED/nextcloud-sso-image
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Offline context only. No app installation, provider, user, registry publication or activation. Enabled={{ nextcloud_sso_prepare | bool }}'
+  - when: nextcloud_sso_prepare | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - nextcloud_sso_archive is match('^/') and not nextcloud_sso_archive.startswith('/UNCONFIGURED/')
+        - nextcloud_sso_output is match('^/') and not nextcloud_sso_output.startswith('/UNCONFIGURED/')
+    - ansible.builtin.stat:
+        path: '{{ nextcloud_sso_archive }}'
+        follow: false
+        checksum_algorithm: sha256
+      register: archive
+    - ansible.builtin.assert:
+        that:
+        - archive.stat.isreg | default(false)
+        - not (archive.stat.islnk | default(false))
+        - archive.stat.checksum == sha256
+    - ansible.builtin.stat:
+        path: '{{ nextcloud_sso_output }}'
+        follow: false
+      register: destination
+    - ansible.builtin.assert:
+        that: not destination.stat.exists
+        fail_msg: Preserve interrupted/previous output; choose a new review directory.
+    - ansible.builtin.file:
+        path: '{{ nextcloud_sso_output }}'
+        state: directory
+        mode: '0700'
+    - ansible.builtin.copy:
+        src: '{{ nextcloud_sso_archive }}'
+        dest: '{{ nextcloud_sso_output }}/user_oidc.tar.gz'
+        mode: '0600'
+        force: false
+    - ansible.builtin.copy:
+        src: '{{ item }}'
+        dest: '{{ nextcloud_sso_output }}/{{ item }}'
+        mode: '0600'
+        force: false
+      loop: [Dockerfile, artifact.yaml]

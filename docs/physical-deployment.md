@@ -294,3 +294,8 @@ opt-in same-Pod cron rendering, initialization gating and bounded serial executi
 reference, retained data and rejection of an unselected storage class. They do
 not contact Kubernetes or prove controller admission, isolation, storage capacity,
 upstream image availability, database TLS or backup/recovery success.
+
+## Disabled SSO preparation
+
+See [the SSO image-context procedure](../sso/README.md). It changes no selected
+workload and enables no provider, login or enrollment.
