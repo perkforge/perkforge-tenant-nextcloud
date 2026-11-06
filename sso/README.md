@@ -1,47 +1,101 @@
-# Disabled Nextcloud SSO preparation
+# Disabled Nextcloud SSO lifecycle
 
-No selected values, hooks, image pins or Flux inputs change. `prepare.yaml` only
-assembles a fresh offline image context from an already downloaded public artifact.
-Default and Ansible check mode do not read the artifact or contact any endpoint:
+This directory changes no selected image, values, Flux source or workload. Every
+Ansible entrypoint defaults off and skips all commands, private inputs and API
+contact in check mode. Future live runs require operation-specific approval,
+verified local recovery and external operator inputs. Publication is separate
+from activation; no merge or successful fixture authorizes a live stage.
 
-```sh
-ansible-playbook sso/prepare.yaml
-ansible-playbook sso/prepare.yaml --check -e nextcloud_sso_prepare=true
-ansible-playbook sso/prepare.yaml -e nextcloud_sso_prepare=true \
-  -e nextcloud_sso_archive=/absolute/user_oidc-v8.13.0.tar.gz \
-  -e nextcloud_sso_output=/absolute/fresh-review-context
-```
+## Artifact, image and values
 
-Fetch the exact URL in artifact.yaml through an approved workstation connection;
-the play verifies its published SHA256 before copying. Dockerfile repeats the
-check and places the signed built app under `/opt/perkforge/apps`, outside the
-persistent custom_apps directory and Nextcloud's automatic initialization source.
-No app-store call, runtime download, automatic installation or app enable occurs.
-The built artifact includes dependencies and Nextcloud signature metadata.
-Review the signature with Nextcloud integrity checking before any enable operation.
-This is a reproducible build recipe, not a claim of bit-identical OCI image bytes.
+Download the official built artifact in `artifact.yaml` on an approved workstation
+connection. `prepare.yaml` with `nextcloud_sso_prepare=true`, an absolute
+`nextcloud_sso_archive` and fresh `nextcloud_sso_output` verifies its published
+SHA256 and assembles an offline Docker context. Existing/interrupted output is
+preserved and refused. The Dockerfile repeats the hash check and retains signed
+app files/dependencies under `/opt/perkforge/apps`, outside initialization and the
+persistent custom_apps directory. It installs/enables nothing automatically.
 
-## Publication and activation gates
+The manual `sso-image-review` workflow builds with network disabled after pulling
+the immutable base, inspects as UID33 and uploads a seven-day review image archive,
+source commit, image metadata and archive hash. It has no package-write permission
+and does not publish an image. Review archive provenance, scan/SBOM, supported
+architecture and native integrity before a separately approved registry copy to
+`ghcr.io/perkforge/nextcloud-sso:35.0.2-oidc8.13.0`. Obtain the actual registry
+manifest digest after copying; a local image ID/archive hash is NOT that digest.
+No fake digest, overwrite of existing tags or runtime download is supplied.
 
-Build/test/publish a separate candidate image only after review. Record its actual
-immutable digest, provenance/SBOM and vulnerability review. Enrollment currently
-admits exactly the existing image and public config volumes: it must continue to
-reject this candidate. A later reviewed exact-digest/mount/config change, a bounded
-copy into persistent custom_apps, signature verification, provider creation and
-separate activation are still required. Do not loosen admission to wildcards,
-add a runtime fetch or overwrite an existing installed app. Failed/interrupted
-preparation preserves its output; repeat with a fresh directory. Repeating a
-completed preparation into the same directory refuses rather than overwriting it.
+After publication, `nextcloud_sso_render_values=true` and `nextcloud_sso_image`
+set to the exact tagged digest additionally render `candidate-app-values.yaml`.
+That file preserves existing settings while changing only app/init/cron image and
+adding exact read-only OIDC public-CA/client-secret mounts and the reviewed HTTPS
+CLI origin. Supply `nextcloud_sso_origin` with image rendering. It is not selected.
+Enrollment's unselected renderer produces matching exact-digest admission, and
+its independent delivery stage consumes an EXISTING external client secret.
 
-The platform PR renders the disabled own-client and deny-all provider review
-inputs. Enrollment renders unselected exact issuer egress/public trust. Neither
-is an active native adapter. Installation, provider conflict/idempotence handling,
-private-secret delivery and lifecycle apply/activate/rollback remain explicit
-implementation gates before production use. Do not run `occ app:install` against
-the app store or bootstrap users as a shortcut.
+## Native operations
 
-Keep local login (`allow_multiple_user_backends=1`), existing recovery credentials,
-files/database and all other apps. Never recreate a provider: its numeric ID is
-part of stable user and group identity. See the platform SSO Nextcloud runbook for
-subject/provisioning/admin decisions and required real acceptance. No household
-data, backup or restore readiness is claimed.
+Use `ansible-playbook sso/reconcile.yaml -e @/absolute/private/operator.yaml`.
+Each future run needs `nextcloud_native_run=true`, operation `X` and
+`nextcloud_native_approval=nextcloud-native-X-v1`. Inputs identify explicit
+kubeconfig/context, cluster UID, Pod name/UID, reviewed image digest and local
+recovery username. The selected web container must be UID33 on Nextcloud 35.0.2;
+no new exec RBAC is granted. Supply only externally held inputs, never Git secrets.
+
+| Operation | Result and additional gate |
+|---|---|
+| inspect | Verify exact existing provider, issuer/client/scope/flags, system policy and local recovery; no mutation |
+| prepare | Read retained provider inventory before mutation; refuse foreign/changed IDs. Copy only missing signed app from embedded artifact using a retained staging directory, check integrity/version, set strict policy and retain local backend, then enable app without creating a provider |
+| apply | Verify mounted secret/CA byte hashes, import the public CA only if absent, configure separately approved private HTTP and create only a missing deny-all provider. Existing providers must match the supplied numeric ID; no updates/adoption/secret rotation |
+| activate | Require reviewed `own-client-role-jit-v1` provisioning and client-ready evidence, verify trusted exact discovery/endpoints/S256/JWKS, then change only the login-role whitelist |
+| grant-admin | Verify provider/hash identity, existing user_oidc backend and an actual direct owner grant on the canonical owned Keycloak client, then add only that OIDC user to native admin |
+| remove-subject | Disable only the verified hashed OIDC user, remove its native admin membership, delete its Nextcloud authentication tokens and verify none remain; retries resume after interruption |
+| resume-subject | Verify an actual direct household/owner client grant, require no native admin membership, then enable only that OIDC account. Admin grant remains separate |
+| rollback | Return only the provider whitelist to deny-all, preserving its numeric identity and all data; require explicit evidence that affected native sessions were revoked first |
+
+Apply additionally requires `nextcloud_private_http_approval=oidc-private-issuer-egress-v1`,
+`nextcloud_ca_sha256` and `nextcloud_secret_sha256`. The secret hash is of the exact
+mounted bytes (delivery trims the external file), not a newline-bearing source file.
+Read and record the newly created numeric provider ID through the read-only
+`occ user_oidc:providers --output=json` interface; supply it for every later run.
+Never recreate a provider: numeric ID plus immutable subject defines the account.
+Admin/resume operations require an external owner-only short-lived Keycloak
+operator-token file, public CA and exact canonical client UUID. No token is minted.
+
+The candidate chooses JIT user creation only for reviewed direct own-client role
+holders, with `soft_auto_provision=false`, immutable sub and unique IDs. It does
+not link by email/username or treat disabling auto provisioning as pre-provisioning.
+Group provisioning and bearer login/provisioning are off; role names do not create
+native admin. Initial owner login is non-admin until explicit native grant.
+
+`allow_local_remote_servers=true` is necessary for the private issuer because the
+upstream app supplies no per-issuer HTTP exception. This broadens Nextcloud's HTTP
+address guard; it requires separately approved, tested narrow network egress.
+Default network policy still denies it. Debug/self-signed bypass is refused.
+Do not activate if the shared ingress /32 exposes unacceptable other destinations.
+
+For removal/demotion: native remove-subject FIRST, then revoke/change only this
+client's direct role using the platform adapter. Household resumption is a
+separate verified operation. No realm-wide logout, user deletion, file removal,
+provider deletion, recovery change or credential rotation occurs. Client rollback
+alone does not revoke existing Nextcloud sessions/app passwords; keep a reviewed
+subject roster and measure actual revocation behavior in live acceptance.
+
+## Verification limits
+
+Actual Ansible runs against synthetic kubectl/occ and HTTPS Keycloak fixtures
+exercise default/check noncontact, identity conflicts, idempotence, interrupted
+copy/revocation, owner versus household admin denial, discovery failure, exact
+image rendering and recovery preservation. PHP verification helpers are read-only
+and default off. Real signed-token/browser/state/nonce tests, certificate integrity,
+Pod/CNI/NAT behavior, native account/session revocation, image execution and paired
+backup/restore still need independently approved acceptance. Do not import household
+data based on offline passes.
+
+The callback path defaults to `/index.php/apps/user_oidc/code`. If actual native
+routing uses pretty URLs, explicitly review `/apps/user_oidc/code` instead via
+`nextcloud_sso_callback_path` in BOTH client and native inputs. Only these two
+exact paths are accepted, never a wildcard. The read-only discovery verifier
+compares Nextcloud's actual generated route with that reviewed full callback and
+stops on mismatch before native activation. The generated values provide the
+canonical `overwrite.cli.url` so CLI verification uses the intended HTTPS origin.

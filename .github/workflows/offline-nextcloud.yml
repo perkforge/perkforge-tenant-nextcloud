@@ -28,4 +28,10 @@ jobs:
         echo "6f13fa0477144a6812d8648626c64cee91807d1d0b60ca41424543086b9e2775  $RUNNER_TEMP/user_oidc-v8.13.0.tar.gz" | sha256sum -c -
         NEXTCLOUD_OIDC_ARCHIVE="$RUNNER_TEMP/user_oidc-v8.13.0.tar.gz" python3 -m unittest discover -s tests -v
         php -l scripts/verify_database_tls.php
+        php -l sso/verify-provider-secret.php
+        php sso/verify-provider-secret.php
+        php -l sso/verify-provider-inventory.php
+        php sso/verify-provider-inventory.php
+        php -l sso/verify-discovery.php
+        php sso/verify-discovery.php
         git diff --check

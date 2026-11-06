@@ -41,11 +41,27 @@ class SsoPreparation(unittest.TestCase):
     def test_trusted_context_and_repeat_refusal(self):
         output = self.directory / 'image'
         inputs = {FLAG: True, OUTPUT: str(output),
-                  'nextcloud_sso_archive': os.environ['NEXTCLOUD_OIDC_ARCHIVE']}
+                  'nextcloud_sso_archive': os.environ['NEXTCLOUD_OIDC_ARCHIVE'],
+                  'nextcloud_sso_render_values':True,'nextcloud_sso_origin':'https://files.example.test',
+                  'nextcloud_sso_image':'ghcr.io/perkforge/nextcloud-sso:35.0.2-oidc8.13.0@sha256:'+'a'*64}
         self.run_play(inputs)
         import hashlib
         self.assertEqual(hashlib.sha256((output / 'user_oidc.tar.gz').read_bytes()).hexdigest(),
                          yaml.safe_load((ROOT / 'sso/artifact.yaml').read_text())['sha256'])
+        candidate=yaml.safe_load((output/'candidate-app-values.yaml').read_text())
+        self.assertEqual(candidate['nextcloud']['configs']['oidc-origin.config.php'].strip(),
+                         '<?php\n$CONFIG = [\'overwrite.cli.url\' => "https://files.example.test"];')
+        self.assertEqual(candidate['nextcloud']['extraVolumes'][-1]['secret']['secretName'],'nextcloud-oidc')
+        self.assertEqual(candidate['nextcloud']['extraVolumeMounts'][-1]['mountPath'],'/run/nextcloud-oidc')
+        self.assertTrue(candidate['nextcloud']['extraVolumeMounts'][-1]['readOnly'])
+        if os.environ.get('NEXTCLOUD_CHART'):
+            rendered=subprocess.check_output([os.environ.get('HELM','helm'),'template','nextcloud',os.environ['NEXTCLOUD_CHART'],
+                       '-n','tenant-home-nextcloud','-f',str(output/'candidate-app-values.yaml'),
+                       '-f',str(ROOT/'gitops/clusters/local/app-values.yaml')],text=True)
+            deployment=next(x for x in yaml.safe_load_all(rendered) if x and x['kind']=='Deployment')
+            pod=deployment['spec']['template']['spec']
+            for container in pod['containers']+pod['initContainers']:
+                self.assertEqual(container['image'],inputs['nextcloud_sso_image'])
         before = (output / 'user_oidc.tar.gz').read_bytes()
         self.run_play(inputs, success=False)
         self.assertEqual(before, (output / 'user_oidc.tar.gz').read_bytes())

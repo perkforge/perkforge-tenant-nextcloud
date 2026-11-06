@@ -5,6 +5,9 @@
   vars_files: [artifact.yaml]
   vars:
     nextcloud_sso_prepare: false
+    nextcloud_sso_render_values: false
+    nextcloud_sso_image: UNCONFIGURED
+    nextcloud_sso_origin: https://nextcloud.example.invalid
     nextcloud_sso_archive: /UNCONFIGURED/user_oidc-v8.13.0.tar.gz
     nextcloud_sso_output: /UNCONFIGURED/nextcloud-sso-image
   tasks:
@@ -48,3 +51,20 @@
         mode: '0600'
         force: false
       loop: [Dockerfile, artifact.yaml]
+    - when: nextcloud_sso_render_values | bool
+      block:
+      - ansible.builtin.assert:
+          that:
+          - nextcloud_sso_image is match('^ghcr.io/perkforge/nextcloud-sso:35.0.2-oidc8.13.0@sha256:[a-f0-9]{64}$')
+          - nextcloud_sso_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$') and nextcloud_sso_origin is not search('\.invalid$')
+      - ansible.builtin.set_fact:
+          nc_app_base: '{{ lookup("file","../gitops/base/app-values.yaml") | from_yaml }}'
+      - ansible.builtin.set_fact:
+          nc_sso_values: '{{ nc_app_base | combine({"image":{"registry":"ghcr.io","repository":"perkforge/nextcloud-sso","tag":nextcloud_sso_image.split(":",1)[1]},"nextcloud":{"extraInitContainers":[nc_app_base.nextcloud.extraInitContainers[0] | combine({"image":nextcloud_sso_image})],"extraVolumes":nc_app_base.nextcloud.extraVolumes + [{"name":"oidc-ca","configMap":{"name":"nextcloud-oidc-ca"}},{"name":"oidc-secret","secret":{"secretName":"nextcloud-oidc","defaultMode":288,"items":[{"key":"client-secret","path":"client-secret"}]}}],"extraVolumeMounts":nc_app_base.nextcloud.extraVolumeMounts + [{"name":"oidc-ca","mountPath":"/etc/nextcloud-oidc","readOnly":true},{"name":"oidc-secret","mountPath":"/run/nextcloud-oidc","readOnly":true}]}},recursive=true) }}'
+      - ansible.builtin.set_fact:
+          nc_sso_values: '{{ nc_sso_values | combine({"nextcloud":{"configs":{"oidc-origin.config.php":lookup("template","oidc-origin.config.php.j2")}}},recursive=true) }}'
+      - ansible.builtin.copy:
+          content: '{{ nc_sso_values | to_nice_yaml }}'
+          dest: '{{ nextcloud_sso_output }}/candidate-app-values.yaml'
+          mode: '0600'
+          force: false
