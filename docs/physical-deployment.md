@@ -153,6 +153,9 @@ reattachment and recovery separately after storage acceptance.
    their public registries with Linux amd64 manifests and are pinned by immutable
    multi-architecture index digest. Review support/security before activation;
    availability and offline rendering do not prove runtime compatibility.
+   The fresh database selects PostgreSQL 17.11 at the same digest observed healthy
+   under the platform's current CNPG operator, rather than the old VM's 17.6 pin.
+   This is an initial image selection, not an upgrade or mutation of an existing DB.
 2. Publish this app only after review; prepare/review the enrollment foundation
    and tag/SHA pin separately. Start source, enrollment and both releases paused.
 3. Deliver existing approved credentials and private TLS trust without printing
