@@ -23,7 +23,7 @@ class FluxContract(unittest.TestCase):
             self.assertEqual(obj['metadata']['namespace'], 'tenant-home-nextcloud-config')
         for obj in releases:
             spec = obj['spec']
-            self.assertTrue(spec['suspend'])
+            self.assertEqual(spec['suspend'], obj['metadata']['name'] != 'nextcloud-data')
             self.assertFalse(spec['install']['createNamespace'])
             for action in ['install', 'upgrade']:
                 self.assertFalse(spec[action].get('disableWait', False))
