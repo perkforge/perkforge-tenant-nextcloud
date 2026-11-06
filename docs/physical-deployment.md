@@ -1,12 +1,11 @@
 # Physical Nextcloud pilot and cron correction
 
 The supported path is `gitops/clusters/local`, composed from `gitops/base`.
-Published v1.0.2 is the selected initialized web pilot, with its separate CronJob
-suspended. This candidate replaces that cron layout with opt-in same-Pod execution
-and keeps background execution disabled. With defaults, the rendered app objects
-are unchanged except removal of the suspended CronJob; no web template, PVC or
-database change is required. Policy review and runtime acceptance precede enabling
-the sidecar. Publication alone does not promote the app's pinned enrollment.
+Released v1.0.3 supplies the disabled same-Pod correction. This later candidate
+opts into its guarded UID33 runner only after the disabled rollout, released
+policy and bounded same-Pod acceptance pass. It adds one same-image container
+with 25m/64Mi requests and 250m/128Mi limits; files, database and retained claims
+stay unchanged. Publication alone does not promote the pinned enrollment.
 The old `bundles/` inputs and VM operations evidence are
 historical; they are preserved unchanged, not a second supported deployment path.
 This proposal deploys a fresh empty instance, not a migration or an import.
@@ -146,7 +145,8 @@ record is still needed to conclusively attribute the incident. See
 Do not repeat separate-Pod cron as an acceptance test or disable SELinux.
 
 This candidate uses the pinned chart's same-Pod sidecar support, with cron
-**disabled by default** pending review and runtime acceptance. It overrides the
+opted in after the preceding acceptance gates. Fresh instances still wait for
+initialized, non-maintenance status before background execution. It overrides the
 root-requiring `/cron.sh` with a UID33 shell runner. Both app containers share
 one Pod SELinux identity and the same persistent mounts. The runner checks
 loopback web status for installed=true, maintenance=false and needsDbUpgrade=false
@@ -158,7 +158,7 @@ A hung or failed runner still needs log monitoring; HTTP readiness alone does
 not prove background-job progress. Stopping the Pod stops both writers, and a
 maintenance/restore still requires explicit quiescence.
 
-Before enabling `cronjob.enabled: true`, publish and apply the separately
+Before selecting this enabled candidate, publish and apply the separately
 reviewed enrollment policy allowing only the existing web container plus the
 named UID33 `nextcloud-cron` container using the same immutable image. Do not
 allow arbitrary sidecars. Then publish/pin the app change through the existing
@@ -288,8 +288,8 @@ NEXTCLOUD_CHART=/path/to/verified/nextcloud-9.4.1.tgz python3 -m unittest discov
 ```
 
 `HELM` may point to the Helm executable. Tests build the actual local selection
-and render the pinned upstream chart plus data chart, checking suspension/scoped
-namespaces, worker scheduling, claim sharing, UID33, initial cron suspension and
+and render the pinned upstream chart plus data chart, checking scoped
+namespaces, worker scheduling, claim sharing, UID33, explicit cron opt-out and
 opt-in same-Pod cron rendering, initialization gating and bounded serial execution, private TLS
 reference, retained data and rejection of an unselected storage class. They do
 not contact Kubernetes or prove controller admission, isolation, storage capacity,
