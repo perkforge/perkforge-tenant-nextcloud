@@ -295,7 +295,9 @@ reference, retained data and rejection of an unselected storage class. They do
 not contact Kubernetes or prove controller admission, isolation, storage capacity,
 upstream image availability, database TLS or backup/recovery success.
 
-## Disabled SSO preparation
+## SSO image rollout candidate
 
-See [the SSO image-context procedure](../sso/README.md). It changes no selected
-workload and enables no provider, login or enrollment.
+See [the SSO procedure](../sso/README.md#published-image-rollout-candidate). This
+source proposes the published private image and read-only inputs. Existing live
+release pins remain unchanged; matching tenant policy, approved credential delivery
+and separate release selection must precede rollout. No provider or login is enabled.

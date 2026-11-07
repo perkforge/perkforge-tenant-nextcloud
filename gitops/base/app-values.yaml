@@ -1,10 +1,11 @@
 fullnameOverride: nextcloud
 replicaCount: 1
 image:
-  registry: docker.io
-  repository: library/nextcloud
-  tag: 35.0.2-apache@sha256:d88929dc8386420b8963f86cabb667fdaf733eef9dcf8fc98e226801a32c023c
+  registry: ghcr.io
+  repository: perkforge/nextcloud-sso
+  tag: 35.0.2-oidc8.13.0@sha256:57c90b70d3c7261debbd5f2f2d760222fd6db65b8235a5c75f4ae7cb59df1d03
   flavor: apache
+  pullSecrets: [nextcloud-registry-existing]
 podLabels:
   platform.perkforge.io/tenant: home
   platform.perkforge.io/application: nextcloud
@@ -106,6 +107,16 @@ nextcloud:
   - name: apache-budget
     configMap:
       name: nextcloud-apache-budget
+  - name: oidc-ca
+    configMap:
+      name: nextcloud-oidc-ca
+  - name: oidc-secret
+    secret:
+      secretName: nextcloud-oidc
+      defaultMode: 288
+      items:
+      - key: client-secret
+        path: client-secret
   extraVolumeMounts:
   - name: postgres-ca
     mountPath: /etc/nextcloud-postgres-ca
@@ -114,9 +125,15 @@ nextcloud:
     mountPath: /etc/apache2/mods-enabled/mpm_prefork.conf
     subPath: mpm_prefork.conf
     readOnly: true
+  - name: oidc-ca
+    mountPath: /etc/nextcloud-oidc
+    readOnly: true
+  - name: oidc-secret
+    mountPath: /run/nextcloud-oidc
+    readOnly: true
   extraInitContainers:
   - name: prepare-persistent-directories
-    image: docker.io/library/nextcloud:35.0.2-apache@sha256:d88929dc8386420b8963f86cabb667fdaf733eef9dcf8fc98e226801a32c023c
+    image: ghcr.io/perkforge/nextcloud-sso:35.0.2-oidc8.13.0@sha256:57c90b70d3c7261debbd5f2f2d760222fd6db65b8235a5c75f4ae7cb59df1d03
     command:
     - sh
     - -ec

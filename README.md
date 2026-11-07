@@ -1,5 +1,10 @@
 # PerkForge Nextcloud tenant
 
+This source proposes the published private SSO-capable image and read-only OIDC
+input mounts. It enables no provider or SSO login. The deployed v1.0.4 pin stays
+unchanged until separately reviewed release selection and rollout. See
+[SSO prerequisites](sso/README.md#published-image-rollout-candidate).
+
 The physical Flux deployment proposal is [docs/physical-deployment.md](docs/physical-deployment.md).
 The physical pilot is enrolled and initialized. This candidate opts into the released non-root same-Pod cron runner. Select it
 only after the disabled correction rollout, released tenant policy and bounded

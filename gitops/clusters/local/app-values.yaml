@@ -11,6 +11,10 @@ affinity:
 nextcloud:
   host: nextcloud.perkforge.home.arpa
   trustedDomains: [nextcloud.perkforge.home.arpa]
+  configs:
+    oidc-origin.config.php: |
+      <?php
+      $CONFIG = ['overwrite.cli.url' => "https://nextcloud.perkforge.home.arpa"];
 ingress:
   enabled: true
   className: traefik

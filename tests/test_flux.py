@@ -1,5 +1,6 @@
 """Offline selection and rendered workload contracts; never contacts Kubernetes."""
 import os
+import json
 from pathlib import Path
 import subprocess
 import unittest
@@ -97,6 +98,26 @@ class FluxContract(unittest.TestCase):
         self.assertIn("'pgsql_ssl'", tls)
         self.assertIn("'mode' => 'verify-full'", tls)
         self.assertEqual(prepare['image'], pod['containers'][0]['image'])
+        published = json.loads((ROOT / 'sso/published-image.json').read_text())
+        expected_image = published['tag'] + '@' + published['registry_digest']
+        self.assertEqual({c['image'] for c in pod['containers'] + pod['initContainers']}, {expected_image})
+        self.assertEqual(pod['imagePullSecrets'], [{'name': 'nextcloud-registry-existing'}])
+        self.assertEqual(published['visibility'], 'private')
+        self.assertFalse(published['rebuilt'])
+        volumes = {v['name']: v for v in pod['volumes']}
+        self.assertEqual(volumes['oidc-ca'], {'name': 'oidc-ca', 'configMap': {'name': 'nextcloud-oidc-ca'}})
+        self.assertEqual(volumes['oidc-secret'], {'name': 'oidc-secret', 'secret': {
+            'secretName': 'nextcloud-oidc', 'defaultMode': 288,
+            'items': [{'key': 'client-secret', 'path': 'client-secret'}]}})
+        for container in pod['containers']:
+            mounts = {m['name']: m for m in container['volumeMounts']}
+            for name, path in [('oidc-ca', '/etc/nextcloud-oidc'), ('oidc-secret', '/run/nextcloud-oidc')]:
+                self.assertEqual(mounts[name], {'name': name, 'mountPath': path, 'readOnly': True})
+        self.assertNotIn('oidc-secret', [m['name'] for m in prepare['volumeMounts']])
+        origin = load('gitops/clusters/local/app-values.yaml')['nextcloud']['configs']['oidc-origin.config.php']
+        self.assertIn('https://nextcloud.perkforge.home.arpa', origin)
+        for forbidden in ['allow_local_remote_servers', 'app:enable', 'user_oidc']:
+            self.assertNotIn(forbidden, (ROOT / 'gitops/base/app-values.yaml').read_text())
         ingress = next(x for x in app if x['kind'] == 'Ingress')
         self.assertEqual(ingress['spec']['tls'][0]['secretName'], 'nextcloud-tls')
         data = render(str(ROOT / 'charts/data'), 'gitops/base/data-values.yaml', 'gitops/clusters/local/data-values.yaml')
