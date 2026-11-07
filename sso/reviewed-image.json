@@ -1,0 +1,26 @@
+{
+  "repository": "perkforge/perkforge-tenant-nextcloud",
+  "source_commit": "9d73c5d358234c3caa5e5f0ff0e3c8ddae4325ef",
+  "source_run_id": 42336471021,
+  "source_workflow": ".github/workflows/sso-image-review.yml",
+  "artifact_id": 13559388179,
+  "artifact_name": "nextcloud-sso-image-review",
+  "artifact_zip_sha256": "411f0690075dea93cbdca39f6613e1e340006118ae85c21c0138e695f7b846f1",
+  "image_archive_sha256": "25d0f798957a1bd869ba9f8e31f5345f29162dadd5d69a33e767c919416b342d",
+  "image_id": "sha256:431c8c49af0f5b2791b33c8512862b3ec058e0cb1533ba33408c364013cd0d11",
+  "destination": "ghcr.io/perkforge/nextcloud-sso:35.0.2-oidc8.13.0",
+  "package_owner": "perkforge",
+  "package_name": "nextcloud-sso",
+  "visibility": "private",
+  "platform": "linux/amd64",
+  "scan": {
+    "tool": "Trivy 0.76.2",
+    "database_updated": "2026-11-07T00:44:27Z",
+    "critical": 3,
+    "high": 161,
+    "medium": 543,
+    "low": 986,
+    "unknown": 55,
+    "publication_requires_explicit_approval": true
+  }
+}
