@@ -95,10 +95,21 @@ data based on offline passes.
 The callback path defaults to `/index.php/apps/user_oidc/code`. If actual native
 routing uses pretty URLs, explicitly review `/apps/user_oidc/code` instead via
 `nextcloud_sso_callback_path` in BOTH client and native inputs. Only these two
-exact paths are accepted, never a wildcard. The read-only discovery verifier
-compares Nextcloud's actual generated route with that reviewed full callback and
-stops on mismatch before native activation. The generated values provide the
-canonical `overwrite.cli.url` so CLI verification uses the intended HTTPS origin.
+exact paths are accepted, never a wildcard or both callbacks. During apply and
+activate, the verifier requests the unauthenticated browser-facing provider login
+at the exact Nextcloud origin with the verified numeric provider ID. It requires
+trusted HTTPS using `nextcloud_ca_file`, does not follow redirects or retain
+cookies, and checks the returned authorization endpoint, client, S256 and exact
+callback before activation. The operator must be able to reach that origin and
+supply the public CA file, including on apply/activate. Failures are redacted.
+
+CLI route generation is not evidence of the browser callback: `OC_CONSOLE` may
+include `/index.php` even when real HTTP routing emits a pretty URL. Keep
+`overwrite.cli.url` canonical, but choose the single callback from actual HTTP
+behavior. Correct BOTH operator inputs and the guarded Keycloak registration
+through their separately approved lifecycle, not by registering both paths.
+This source-only verifier change needs no Nextcloud image rebuild or app redeploy.
+It does not perform a user login or prove account/admin access.
 
 ## Confirmed owner and future household access
 

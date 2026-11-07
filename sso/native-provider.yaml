@@ -83,9 +83,41 @@
   - ansible.builtin.assert:
       that: nc_private_http.stdout == 'true'
   - ansible.builtin.command:
-      argv: '{{ nc_k + ["-n","tenant-home-nextcloud","exec","-i",nextcloud_pod,"-c","nextcloud","--","php","--","--run",nextcloud_sso_issuer,nextcloud_sso_origin + nextcloud_sso_callback_path] }}'
+      argv: '{{ nc_k + ["-n","tenant-home-nextcloud","exec","-i",nextcloud_pod,"-c","nextcloud","--","php","--","--run",nextcloud_sso_issuer] }}'
       stdin: '{{ lookup("file","verify-discovery.php") }}'
     changed_when: false
+- when: nextcloud_native_operation in ['apply','activate']
+  block:
+  - ansible.builtin.command:
+      argv: '{{ nc_occ + ["user_oidc:providers","--output=json"] }}'
+    changed_when: false
+    register: nc_browser_provider
+  - ansible.builtin.assert:
+      that:
+      - nc_browser_provider.stdout_lines | length == 1
+      - (nc_browser_provider.stdout | from_json).identifier == 'perkforge-nextcloud'
+      - (nc_browser_provider.stdout | from_json).clientId == 'nextcloud'
+      - (nc_browser_provider.stdout | from_json).discoveryEndpoint == nextcloud_sso_issuer + '/.well-known/openid-configuration'
+      - (nc_browser_provider.stdout | from_json).id | int > 0
+      - nc_provider_records | length == 0 or (nc_browser_provider.stdout | from_json).id | int == nextcloud_provider_id | int
+  - name: Verify callback from browser-facing login before permitting activation
+    ansible.builtin.command:
+      argv:
+      - '{{ ansible_playbook_python }}'
+      - '{{ playbook_dir }}/verify-browser-callback.py'
+      - --run
+      - --origin
+      - '{{ nextcloud_sso_origin }}'
+      - --issuer
+      - '{{ nextcloud_sso_issuer }}'
+      - --callback-path
+      - '{{ nextcloud_sso_callback_path }}'
+      - --provider-id
+      - '{{ (nc_browser_provider.stdout | from_json).id | string }}'
+      - --ca-file
+      - '{{ nextcloud_ca_file }}'
+    changed_when: false
+    no_log: true
 - ansible.builtin.command:
     argv: '{{ nc_occ + ["user_oidc:provider","perkforge-nextcloud","--group-whitelist-regex=" + (nc_allow if nextcloud_native_operation == "activate" else nc_deny)] }}'
   when: nextcloud_native_operation in ['activate','rollback'] and nc_provider_records[0].settings.groupWhitelistRegex != (nc_allow if nextcloud_native_operation == 'activate' else nc_deny)
