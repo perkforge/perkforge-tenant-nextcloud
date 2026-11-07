@@ -117,7 +117,12 @@ Corey's existing Keycloak identity is intended to retain platform-admin authorit
 and receive native admin for this dedicated Nextcloud tenant. Use its verified
 immutable subject for the direct owner role and separate native grant; no new
 identity, username/email linking or inferred platform-group mapping. Keep the
-existing local Nextcloud admin unchanged for independent recovery. Live acceptance
+existing local Nextcloud admin unchanged for independent recovery. Native subject
+operations check its exact user ID, Database backend, enabled state and admin
+membership before and after the operation. They do not compare unrelated
+`user:info` metadata (for example usage, last-seen or display fields) for equality.
+A failed final verification does not undo a subject mutation already performed;
+inspect current state before retrying. Live acceptance
 must prove both Corey's actual native admin access and retained platform access,
 then prove local recovery independently.
 
