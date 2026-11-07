@@ -1,0 +1,117 @@
+# Disabled Nextcloud SSO lifecycle
+
+This directory changes no selected image, values, Flux source or workload. Every
+Ansible entrypoint defaults off and skips all commands, private inputs and API
+contact in check mode. Future live runs require operation-specific approval,
+verified local recovery and external operator inputs. Publication is separate
+from activation; no merge or successful fixture authorizes a live stage.
+
+## Artifact, image and values
+
+Download the official built artifact in `artifact.yaml` on an approved workstation
+connection. `prepare.yaml` with `nextcloud_sso_prepare=true`, an absolute
+`nextcloud_sso_archive` and fresh `nextcloud_sso_output` verifies its published
+SHA256 and assembles an offline Docker context. Existing/interrupted output is
+preserved and refused. The Dockerfile repeats the hash check and retains signed
+app files/dependencies under `/opt/perkforge/apps`, outside initialization and the
+persistent custom_apps directory. It installs/enables nothing automatically.
+
+The manual `sso-image-review` workflow builds with network disabled after pulling
+the immutable base, inspects as UID33 and uploads a seven-day review image archive,
+source commit, image metadata and archive hash. It has no package-write permission
+and does not publish an image. Review archive provenance, scan/SBOM, supported
+architecture and native integrity before a separately approved registry copy to
+`ghcr.io/perkforge/nextcloud-sso:35.0.2-oidc8.13.0`. Obtain the actual registry
+manifest digest after copying; a local image ID/archive hash is NOT that digest.
+No fake digest, overwrite of existing tags or runtime download is supplied.
+
+After publication, `nextcloud_sso_render_values=true` and `nextcloud_sso_image`
+set to the exact tagged digest additionally render `candidate-app-values.yaml`.
+That file preserves existing settings while changing only app/init/cron image and
+adding exact read-only OIDC public-CA/client-secret mounts and the reviewed HTTPS
+CLI origin. Supply `nextcloud_sso_origin` with image rendering. It is not selected.
+Enrollment's unselected renderer produces matching exact-digest admission, and
+its independent delivery stage consumes an EXISTING external client secret.
+
+## Native operations
+
+Use `ansible-playbook sso/reconcile.yaml -e @/absolute/private/operator.yaml`.
+Each future run needs `nextcloud_native_run=true`, operation `X` and
+`nextcloud_native_approval=nextcloud-native-X-v1`. Inputs identify explicit
+kubeconfig/context, cluster UID, Pod name/UID, reviewed image digest and local
+recovery username. The selected web container must be UID33 on Nextcloud 35.0.2;
+no new exec RBAC is granted. Supply only externally held inputs, never Git secrets.
+
+| Operation | Result and additional gate |
+|---|---|
+| inspect | Verify exact existing provider, issuer/client/scope/flags, system policy and local recovery; no mutation |
+| prepare | Read retained provider inventory before mutation; refuse foreign/changed IDs. Copy only missing signed app from embedded artifact using a retained staging directory, check integrity/version, set strict policy and retain local backend, then enable app without creating a provider |
+| apply | Verify mounted secret/CA byte hashes, import the public CA only if absent, configure separately approved private HTTP and create only a missing deny-all provider. Existing providers must match the supplied numeric ID; no updates/adoption/secret rotation |
+| activate | Require reviewed `own-client-role-jit-v1` provisioning and client-ready evidence, verify trusted exact discovery/endpoints/S256/JWKS, then change only the login-role whitelist |
+| grant-admin | Verify provider/hash identity, existing user_oidc backend and an actual direct owner grant on the canonical owned Keycloak client, then add only that OIDC user to native admin |
+| remove-subject | Disable only the verified hashed OIDC user, remove its native admin membership, delete its Nextcloud authentication tokens and verify none remain; retries resume after interruption |
+| resume-subject | Verify an actual direct household/owner client grant, require no native admin membership, then enable only that OIDC account. Admin grant remains separate |
+| rollback | Return only the provider whitelist to deny-all, preserving its numeric identity and all data; require explicit evidence that affected native sessions were revoked first |
+
+Apply additionally requires `nextcloud_private_http_approval=oidc-private-issuer-egress-v1`,
+`nextcloud_ca_sha256` and `nextcloud_secret_sha256`. The secret hash is of the exact
+mounted bytes (delivery trims the external file), not a newline-bearing source file.
+Read and record the newly created numeric provider ID through the read-only
+`occ user_oidc:providers --output=json` interface; supply it for every later run.
+Never recreate a provider: numeric ID plus immutable subject defines the account.
+Admin/resume operations require an external owner-only short-lived Keycloak
+operator-token file, public CA and exact canonical client UUID. No token is minted.
+
+The candidate chooses JIT user creation only for reviewed direct own-client role
+holders, with `soft_auto_provision=false`, immutable sub and unique IDs. It does
+not link by email/username or treat disabling auto provisioning as pre-provisioning.
+Group provisioning and bearer login/provisioning are off; role names do not create
+native admin. Initial owner login is non-admin until explicit native grant.
+
+`allow_local_remote_servers=true` is necessary for the private issuer because the
+upstream app supplies no per-issuer HTTP exception. This broadens Nextcloud's HTTP
+address guard; it requires separately approved, tested narrow network egress.
+Default network policy still denies it. Debug/self-signed bypass is refused.
+Do not activate if the shared ingress /32 exposes unacceptable other destinations.
+
+For removal/demotion: native remove-subject FIRST, then revoke/change only this
+client's direct role using the platform adapter. Household resumption is a
+separate verified operation. No realm-wide logout, user deletion, file removal,
+provider deletion, recovery change or credential rotation occurs. Client rollback
+alone does not revoke existing Nextcloud sessions/app passwords; keep a reviewed
+subject roster and measure actual revocation behavior in live acceptance.
+
+## Verification limits
+
+Actual Ansible runs against synthetic kubectl/occ and HTTPS Keycloak fixtures
+exercise default/check noncontact, identity conflicts, idempotence, interrupted
+copy/revocation, owner versus household admin denial, discovery failure, exact
+image rendering and recovery preservation. PHP verification helpers are read-only
+and default off. Real signed-token/browser/state/nonce tests, certificate integrity,
+Pod/CNI/NAT behavior, native account/session revocation, image execution and paired
+backup/restore still need independently approved acceptance. Do not import household
+data based on offline passes.
+
+The callback path defaults to `/index.php/apps/user_oidc/code`. If actual native
+routing uses pretty URLs, explicitly review `/apps/user_oidc/code` instead via
+`nextcloud_sso_callback_path` in BOTH client and native inputs. Only these two
+exact paths are accepted, never a wildcard. The read-only discovery verifier
+compares Nextcloud's actual generated route with that reviewed full callback and
+stops on mismatch before native activation. The generated values provide the
+canonical `overwrite.cli.url` so CLI verification uses the intended HTTPS origin.
+
+## Confirmed owner and future household access
+
+Corey's existing Keycloak identity is intended to retain platform-admin authority
+and receive native admin for this dedicated Nextcloud tenant. Use its verified
+immutable subject for the direct owner role and separate native grant; no new
+identity, username/email linking or inferred platform-group mapping. Keep the
+existing local Nextcloud admin unchanged for independent recovery. Live acceptance
+must prove both Corey's actual native admin access and retained platform access,
+then prove local recovery independently.
+
+Jett is the intended ordinary household user, without native admin. Do not create
+or enroll that account now. Any future household grant needs separate approval,
+exact subject verification and successful ordinary-access/admin-denial tests.
+Recording this design does not authorize activation, credentials or live grants;
+all example run flags and subject selections remain disabled/empty.

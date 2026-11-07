@@ -1,0 +1,56 @@
+- ansible.builtin.command:
+    argv: '{{ nc_k + ["-n","tenant-home-nextcloud","exec","-i",nextcloud_pod,"-c","nextcloud","--","php","--","--run"] }}'
+    stdin: '{{ lookup("file","verify-provider-inventory.php") }}'
+  changed_when: false
+  register: nc_retained_providers
+- ansible.builtin.assert:
+    that: nc_retained_providers.stdout | from_json | length <= 1
+- ansible.builtin.assert:
+    that:
+    - item.id | int == nextcloud_provider_id | int and nextcloud_provider_id | int > 0
+    - item.identifier == 'perkforge-nextcloud'
+    - item.client_id == 'nextcloud'
+    - item.discovery_endpoint == nextcloud_sso_issuer + '/.well-known/openid-configuration'
+  loop: '{{ nc_retained_providers.stdout | from_json }}'
+# No app store. The staged directory is preserved on failure, never overwritten.
+- ansible.builtin.command:
+    argv: '{{ nc_exec + ["sh","-ec", "test -d /var/www/html/custom_apps/user_oidc && echo installed || true"] }}'
+  changed_when: false
+  register: nc_installed
+- ansible.builtin.command:
+    argv: '{{ nc_exec + ["sh","-ec", "test ! -e /var/www/html/custom_apps/.user_oidc-preparing; mkdir /var/www/html/custom_apps/.user_oidc-preparing; cp -R /opt/perkforge/apps/user_oidc/. /var/www/html/custom_apps/.user_oidc-preparing/; chmod -R u+w /var/www/html/custom_apps/.user_oidc-preparing; mv -T /var/www/html/custom_apps/.user_oidc-preparing /var/www/html/custom_apps/user_oidc"] }}'
+  when: nc_installed.stdout == ''
+  changed_when: true
+- ansible.builtin.command:
+    argv: '{{ nc_occ + ["integrity:check-app","user_oidc"] }}'
+  changed_when: false
+- ansible.builtin.command:
+    argv: '{{ nc_occ + ["app:list","--output=json"] }}'
+  changed_when: false
+  register: nc_apps
+- ansible.builtin.assert:
+    that:
+    - (nc_apps.stdout | from_json).enabled.user_oidc | default((nc_apps.stdout | from_json).disabled.user_oidc | default('')) == '8.13.0'
+# System policy must precede app enable/provider creation. An interrupted run stays deny-all.
+- ansible.builtin.command:
+    argv: '{{ nc_occ + ["config:list","--output=json"] }}'
+  changed_when: false
+  register: nc_configuration
+- ansible.builtin.set_fact:
+    nc_existing_system: '{{ (nc_configuration.stdout | from_json).system.user_oidc | default({}) }}'
+- ansible.builtin.assert:
+    that:
+    - not ((nc_configuration.stdout | from_json).system.debug | default(false))
+    - nc_existing_system == {} or nc_existing_system == nc_system
+- ansible.builtin.command:
+    argv: '{{ nc_occ + ["config:system:set","user_oidc","--type=json","--value=" + (nc_system | to_json)] }}'
+  when: nc_existing_system == {}
+  changed_when: true
+- ansible.builtin.command:
+    argv: '{{ nc_occ + ["config:app:set","user_oidc","allow_multiple_user_backends","--type=string","--value=1"] }}'
+  when: (nc_configuration.stdout | from_json).apps.user_oidc.allow_multiple_user_backends | default('') != '1'
+  changed_when: true
+- ansible.builtin.command:
+    argv: '{{ nc_occ + ["app:enable","user_oidc"] }}'
+  when: '"user_oidc" not in (nc_apps.stdout | from_json).enabled'
+  changed_when: true

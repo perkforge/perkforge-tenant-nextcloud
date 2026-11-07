@@ -1,0 +1,7 @@
+# Official built app, including vendored dependencies; source tarballs are insufficient.
+version: 8.13.0
+source_commit: 58d557521b79f6650f7a87b2abab94b760fcf154
+url: https://github.com/nextcloud-releases/user_oidc/releases/download/v8.13.0/user_oidc-v8.13.0.tar.gz
+sha256: 6f13fa0477144a6812d8648626c64cee91807d1d0b60ca41424543086b9e2775
+nextcloud_min: 29
+nextcloud_max: 36

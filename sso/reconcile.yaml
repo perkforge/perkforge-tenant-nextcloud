@@ -1,0 +1,121 @@
+- name: Independently prepare/apply/activate or roll back native Nextcloud SSO
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    nextcloud_native_run: false
+    nextcloud_native_operation: inspect
+    nextcloud_native_approval: UNAPPROVED
+    nextcloud_recovery_verified: false
+    nextcloud_provisioning_approval: UNAPPROVED
+    nextcloud_private_http_approval: UNAPPROVED
+    nextcloud_client_ready: false
+    nextcloud_sessions_revoked: false
+    nextcloud_kubeconfig: /UNCONFIGURED/kubeconfig
+    nextcloud_context: UNCONFIGURED
+    nextcloud_cluster_uid: UNCONFIGURED
+    nextcloud_pod: UNCONFIGURED
+    nextcloud_pod_uid: UNCONFIGURED
+    nextcloud_image: UNCONFIGURED
+    nextcloud_sso_origin: https://nextcloud.example.invalid
+    nextcloud_sso_callback_path: /index.php/apps/user_oidc/code
+    nextcloud_sso_issuer: https://identity.example.invalid/auth/realms/perkforge
+    nextcloud_provider_id: 0
+    nextcloud_recovery_user: UNCONFIGURED
+    nextcloud_subject: UNCONFIGURED
+    nextcloud_client_uuid: UNCONFIGURED
+    nextcloud_keycloak_token_file: /UNCONFIGURED/operator-token
+    nextcloud_ca_file: /UNCONFIGURED/public-ca.pem
+    nextcloud_ca_sha256: UNCONFIGURED
+    nextcloud_secret_sha256: UNCONFIGURED
+    nc_deny: '/^(?!)$/'
+    nc_allow: '/^(household|owner)$/'
+    nc_system:
+      auto_provision: true
+      soft_auto_provision: false
+      disable_account_creation: false
+      use_pkce: force
+      login_validation_audience_check: true
+      login_validation_azp_check: true
+      login_validation_nonce_check: true
+      httpclient.allowselfsigned: false
+      userinfo_bearer_validation: false
+      selfencoded_bearer_validation: false
+      oidc_provider_bearer_validation: false
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Native stage={{ nextcloud_native_operation }}. Default/check read no private files, execute no commands and contact no APIs.'
+  - when: nextcloud_native_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - nextcloud_native_operation in ['inspect','prepare','apply','activate','rollback','grant-admin','remove-subject','resume-subject']
+        - nextcloud_native_approval == 'nextcloud-native-' + nextcloud_native_operation + '-v1'
+        - nextcloud_recovery_verified | bool
+        - nc_deny == '/^(?!)$/' and nc_allow == '/^(household|owner)$/'
+        - nc_system.auto_provision == true and nc_system.soft_auto_provision == false
+        - nc_system.use_pkce == 'force' and nc_system['httpclient.allowselfsigned'] == false
+        - nc_system.login_validation_audience_check and nc_system.login_validation_azp_check and nc_system.login_validation_nonce_check
+        - not nc_system.userinfo_bearer_validation and not nc_system.selfencoded_bearer_validation and not nc_system.oidc_provider_bearer_validation
+        - nextcloud_native_operation != 'activate' or (nextcloud_client_ready | bool and nextcloud_provisioning_approval == 'own-client-role-jit-v1')
+        - nextcloud_native_operation != 'rollback' or nextcloud_sessions_revoked | bool
+        - nextcloud_kubeconfig is match('^/') and not nextcloud_kubeconfig.startswith('/UNCONFIGURED/')
+        - nextcloud_context != 'UNCONFIGURED' and nextcloud_cluster_uid != 'UNCONFIGURED'
+        - nextcloud_pod is match('^nextcloud-[a-z0-9-]+$') and nextcloud_pod_uid != 'UNCONFIGURED'
+        - nextcloud_image is match('^ghcr.io/perkforge/nextcloud-sso:35.0.2-oidc8.13.0@sha256:[a-f0-9]{64}$')
+        - nextcloud_recovery_user is match('^[A-Za-z0-9._-]{1,64}$') and nextcloud_recovery_user != 'UNCONFIGURED'
+        - nextcloud_sso_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$') and nextcloud_sso_origin is not search('\.invalid$')
+        - nextcloud_sso_callback_path in ['/index.php/apps/user_oidc/code','/apps/user_oidc/code']
+        - nextcloud_sso_issuer is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?(/auth)?/realms/perkforge$')
+        - nextcloud_sso_issuer is not search('\.invalid/')
+    - ansible.builtin.set_fact:
+        nc_k: [kubectl, --kubeconfig, '{{ nextcloud_kubeconfig }}', --context, '{{ nextcloud_context }}']
+    - ansible.builtin.command:
+        argv: '{{ nc_k + ["get","namespace","kube-system","-o","jsonpath={.metadata.uid}"] }}'
+      changed_when: false
+      register: nc_cluster
+    - ansible.builtin.assert:
+        that: nc_cluster.stdout == nextcloud_cluster_uid
+    - ansible.builtin.command:
+        argv: '{{ nc_k + ["-n","tenant-home-nextcloud","get","pod",nextcloud_pod,"-o","json"] }}'
+      changed_when: false
+      register: nc_pod_result
+    - ansible.builtin.set_fact:
+        nc_pod_record: '{{ nc_pod_result.stdout | from_json }}'
+        nc_exec: '{{ nc_k + ["-n","tenant-home-nextcloud","exec",nextcloud_pod,"-c","nextcloud","--"] }}'
+    - ansible.builtin.assert:
+        that:
+        - nc_pod_record.metadata.uid == nextcloud_pod_uid
+        - nc_pod_record.metadata.labels['app.kubernetes.io/name'] == 'nextcloud'
+        - nc_pod_record.metadata.labels['app.kubernetes.io/instance'] == 'nextcloud'
+        - nc_pod_record.spec.containers | selectattr('name','equalto','nextcloud') | map(attribute='image') | list == [nextcloud_image]
+        - nc_pod_record.spec.containers | selectattr('name','equalto','nextcloud') | map(attribute='securityContext.runAsUser') | list == [33]
+        - not (nc_pod_record.spec.automountServiceAccountToken | default(false))
+    - ansible.builtin.set_fact:
+        nc_occ: '{{ nc_exec + ["php","/var/www/html/occ"] }}'
+    - ansible.builtin.command:
+        argv: '{{ nc_occ + ["status","--output=json"] }}'
+      changed_when: false
+      register: nc_status
+    - ansible.builtin.assert:
+        that:
+        - (nc_status.stdout | from_json).installed
+        - not (nc_status.stdout | from_json).maintenance
+        - not (nc_status.stdout | from_json).needsDbUpgrade
+        - (nc_status.stdout | from_json).versionstring == '35.0.2'
+    - ansible.builtin.command:
+        argv: '{{ nc_occ + ["user:info",nextcloud_recovery_user,"--output=json"] }}'
+      changed_when: false
+      register: nc_recovery
+    - ansible.builtin.assert:
+        that:
+        - (nc_recovery.stdout | from_json).backend == 'Database'
+        - (nc_recovery.stdout | from_json).enabled
+        - "'admin' in (nc_recovery.stdout | from_json).groups"
+    - ansible.builtin.include_tasks: native-prepare.yaml
+      when: nextcloud_native_operation == 'prepare'
+    - ansible.builtin.include_tasks: native-provider.yaml
+      when: nextcloud_native_operation in ['inspect','apply','activate','rollback','grant-admin','remove-subject','resume-subject']
+    - ansible.builtin.include_tasks: native-subject.yaml
+      when: nextcloud_native_operation in ['grant-admin','remove-subject','resume-subject']
