@@ -1,0 +1,15 @@
+{
+  "source_commit": "9d73c5d358234c3caa5e5f0ff0e3c8ddae4325ef",
+  "source_run_id": 42336471021,
+  "artifact_id": 13559388179,
+  "image_archive_sha256": "25d0f798957a1bd869ba9f8e31f5345f29162dadd5d69a33e767c919416b342d",
+  "image_id": "sha256:431c8c49af0f5b2791b33c8512862b3ec058e0cb1533ba33408c364013cd0d11",
+  "tag": "ghcr.io/perkforge/nextcloud-sso:35.0.2-oidc8.13.0",
+  "registry_digest": "sha256:57c90b70d3c7261debbd5f2f2d760222fd6db65b8235a5c75f4ae7cb59df1d03",
+  "immutable_image": "ghcr.io/perkforge/nextcloud-sso@sha256:57c90b70d3c7261debbd5f2f2d760222fd6db65b8235a5c75f4ae7cb59df1d03",
+  "visibility": "private",
+  "rebuilt": false,
+  "deployed": false,
+  "publication_run_id": 42339875502,
+  "publication_receipt_url": "https://github.com/perkforge/perkforge-tenant-nextcloud/actions/runs/42339875502/artifacts/13560634801"
+}

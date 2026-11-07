@@ -54,6 +54,10 @@ class SsoPreparation(unittest.TestCase):
         self.assertEqual(candidate['nextcloud']['extraVolumes'][-1]['secret']['secretName'],'nextcloud-oidc')
         self.assertEqual(candidate['nextcloud']['extraVolumeMounts'][-1]['mountPath'],'/run/nextcloud-oidc')
         self.assertTrue(candidate['nextcloud']['extraVolumeMounts'][-1]['readOnly'])
+        self.assertEqual(candidate['image']['pullSecrets'], ['nextcloud-registry-existing'])
+        for field in ['extraVolumes', 'extraVolumeMounts']:
+            names = [x['name'] for x in candidate['nextcloud'][field]]
+            self.assertEqual(len(names), len(set(names)))
         if os.environ.get('NEXTCLOUD_CHART'):
             rendered=subprocess.check_output([os.environ.get('HELM','helm'),'template','nextcloud',os.environ['NEXTCLOUD_CHART'],
                        '-n','tenant-home-nextcloud','-f',str(output/'candidate-app-values.yaml'),

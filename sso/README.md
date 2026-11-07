@@ -1,7 +1,7 @@
-# Disabled Nextcloud SSO lifecycle
+# Nextcloud SSO image candidate and gated lifecycle
 
-This directory changes no selected image, values, Flux source or workload. Every
-Ansible entrypoint defaults off and skips all commands, private inputs and API
+The source values select the published image candidate described below; the live
+enrollment remains pinned to v1.0.4. Every Ansible entrypoint defaults off and skips all commands, private inputs and API
 contact in check mode. Future live runs require operation-specific approval,
 verified local recovery and external operator inputs. Publication is separate
 from activation; no merge or successful fixture authorizes a live stage.
@@ -115,3 +115,32 @@ or enroll that account now. Any future household grant needs separate approval,
 exact subject verification and successful ordinary-access/admin-denial tests.
 Recording this design does not authorize activation, credentials or live grants;
 all example run flags and subject selections remain disabled/empty.
+
+## Published image rollout candidate
+
+`gitops/base/app-values.yaml` now selects the exact private image recorded in
+`published-image.json` for web, same-Pod cron and initialization. Publication run
+[42339875502](https://github.com/perkforge/perkforge-tenant-nextcloud/actions/runs/42339875502)
+verified the reviewed image ID after pulling its immutable registry digest. The
+recorded scan findings remain accepted only for this image; it is not a clean scan.
+The chart references only `nextcloud-registry-existing` for private pulls and
+mounts only the existing named OIDC client-secret/public CA read-only. Local values
+set the canonical HTTPS CLI origin. This does not install/enable user_oidc, create
+a provider, allow private HTTP, change recovery login, create credentials or grant users.
+
+Before selecting a new app release, separately review and publish the matching
+tenant policy, then approve its exact application. Deliver the private pull Secret,
+`nextcloud-oidc` and `nextcloud-oidc-ca` using approved operator-owned inputs; never
+reuse a publisher token or commit credentials. Those inputs do not currently exist
+in the live namespace. Do not select this image before all three are verified.
+Select the released app through enrollment/platform pins, not a live-only image patch.
+The retained database/files claims, UID33, database TLS, web/cron budgets, local admin
+and current network boundary are unchanged by this source candidate.
+
+Before rollout, verify local recovery login and record current Pod/claim identities
+and synthetic-file checksum. After the approved Recreate rollout, verify both
+containers Ready, exact running digest, database TLS, retained data and two successful
+cron runs. Stop on failure and preserve resources. Native app preparation, dedicated
+Keycloak client, narrow issuer egress/trust, provider setup, owner login and the
+separate native-admin grant still require their own approved checks. Jett/household
+onboarding remains deferred. No merge, image publication or test run enables SSO.
