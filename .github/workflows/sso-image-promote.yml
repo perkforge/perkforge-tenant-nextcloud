@@ -1,0 +1,65 @@
+name: sso-image-promote
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the exact reviewed run 2 image privately to GHCR (does not deploy)
+        type: boolean
+        required: true
+        default: false
+      owner_verified_new_package:
+        description: An organization owner independently verified this package does not exist; allow new private creation
+        type: boolean
+        required: true
+        default: false
+      exclusive_tag_publication:
+        description: I verified no other publisher can write this tag during promotion
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: nextcloud-sso-reviewed-image-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'perkforge/perkforge-tenant-nextcloud' && inputs.publish && inputs.exclusive_tag_publication
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Test promotion guards without registry access
+        run: |
+          python3 -m pip install PyYAML==6.0.3
+          python3 -m unittest discover -s tests -p 'test_sso_promotion.py' -v
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Check package visibility and verified artifact before registry sign-in
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER_VERIFIED_NEW_PACKAGE: ${{ inputs.owner_verified_new_package }}
+          EXCLUSIVE_TAG_PUBLICATION: ${{ inputs.exclusive_tag_publication }}
+        run: python3 scripts/promote_sso_image.py prepare --directory "$RUNNER_TEMP/sso-promotion"
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote without rebuilding and verify private registry digest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER_VERIFIED_NEW_PACKAGE: ${{ inputs.owner_verified_new_package }}
+          EXCLUSIVE_TAG_PUBLICATION: ${{ inputs.exclusive_tag_publication }}
+        run: python3 scripts/promote_sso_image.py publish --directory "$RUNNER_TEMP/sso-promotion"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: nextcloud-sso-publication-receipt
+          path: ${{ runner.temp }}/sso-promotion/publication-receipt.json
+          if-no-files-found: error
+          retention-days: 30
