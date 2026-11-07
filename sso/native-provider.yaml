@@ -27,6 +27,7 @@
     - item.id | int == nextcloud_provider_id | int and nextcloud_provider_id | int > 0
     - item.settings.uniqueUid == true
     - item.settings.mappingUid == 'sub'
+    - item.settings.mappingDisplayName | default('') == 'name' or (nextcloud_native_operation == 'display-name' and item.settings.mappingDisplayName | default('') == '')
     - item.settings.mappingGroups == 'nextcloud_roles'
     - item.settings.restrictLoginToGroups == true
     - item.settings.groupProvisioning == false
@@ -71,7 +72,7 @@
     when: not ((nc_configuration.stdout | from_json).system.allow_local_remote_servers | default(false))
     changed_when: true
   - ansible.builtin.command:
-      argv: '{{ nc_occ + ["user_oidc:provider","perkforge-nextcloud","--clientid=nextcloud","--clientsecret-file=/run/nextcloud-oidc/client-secret","--discoveryuri=" + nextcloud_sso_issuer + "/.well-known/openid-configuration","--scope=openid","--mapping-uid=sub","--unique-uid=1","--mapping-groups=nextcloud_roles","--group-provisioning=0","--group-restrict-login-to-whitelist=1","--group-whitelist-regex=" + nc_deny,"--check-bearer=0","--bearer-provisioning=0","--resolve-nested-claims=0"] }}'
+      argv: '{{ nc_occ + ["user_oidc:provider","perkforge-nextcloud","--clientid=nextcloud","--clientsecret-file=/run/nextcloud-oidc/client-secret","--discoveryuri=" + nextcloud_sso_issuer + "/.well-known/openid-configuration","--scope=openid","--mapping-uid=sub","--mapping-display-name=name","--unique-uid=1","--mapping-groups=nextcloud_roles","--group-provisioning=0","--group-restrict-login-to-whitelist=1","--group-whitelist-regex=" + nc_deny,"--check-bearer=0","--bearer-provisioning=0","--resolve-nested-claims=0"] }}'
     when: nc_provider_records | length == 0
     changed_when: true
 - when: nextcloud_native_operation in ['apply','activate']
@@ -118,6 +119,11 @@
       - '{{ nextcloud_ca_file }}'
     changed_when: false
     no_log: true
+- name: Set only the readable name mapping after exact provider and recovery checks
+  ansible.builtin.command:
+    argv: '{{ nc_occ + ["user_oidc:provider","perkforge-nextcloud","--mapping-display-name=name"] }}'
+  when: nextcloud_native_operation == 'display-name' and nc_provider_records[0].settings.mappingDisplayName | default('') != 'name'
+  changed_when: true
 - ansible.builtin.command:
     argv: '{{ nc_occ + ["user_oidc:provider","perkforge-nextcloud","--group-whitelist-regex=" + (nc_allow if nextcloud_native_operation == "activate" else nc_deny)] }}'
   when: nextcloud_native_operation in ['activate','rollback'] and nc_provider_records[0].settings.groupWhitelistRegex != (nc_allow if nextcloud_native_operation == 'activate' else nc_deny)
@@ -135,3 +141,9 @@
   vars:
     nc_credential_provider_id: '{{ (nc_provider_after.stdout_lines[0] | from_json).id }}'
   when: nextcloud_native_operation == 'apply' and nc_provider_records | length == 0
+- name: Verify name-only migration preserved every other provider field
+  ansible.builtin.assert:
+    that:
+    - >-
+      (nc_provider_after.stdout_lines[0] | from_json) == nc_provider_records[0] | combine({'settings': nc_provider_records[0].settings | combine({'mappingDisplayName':'name'})})
+  when: nextcloud_native_operation == 'display-name'

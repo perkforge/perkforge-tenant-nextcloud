@@ -131,3 +131,4 @@
     - (nc_recovery_after.stdout | from_json).backend == 'Database'
     - (nc_recovery_after.stdout | from_json).enabled
     - "'admin' in (nc_recovery_after.stdout | from_json).groups"
+    - (nc_recovery_after.stdout | from_json).groups | unique | sort == (nc_recovery.stdout | from_json).groups | unique | sort

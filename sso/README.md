@@ -1,7 +1,8 @@
 # Nextcloud SSO image candidate and gated lifecycle
 
-The source values select the published image candidate described below; the live
-enrollment remains pinned to v1.0.4. Every Ansible entrypoint defaults off and skips all commands, private inputs and API
+The source values select the published SSO-capable image described below. Actual
+release selection belongs to enrollment Git; verify its current pin and live state.
+Every Ansible entrypoint defaults off and skips all commands, private inputs and API
 contact in check mode. Future live runs require operation-specific approval,
 verified local recovery and external operator inputs. Publication is separate
 from activation; no merge or successful fixture authorizes a live stage.
@@ -48,6 +49,7 @@ no new exec RBAC is granted. Supply only externally held inputs, never Git secre
 | prepare | Read retained provider inventory before mutation; refuse foreign/changed IDs. Copy only missing signed app from embedded artifact using a retained staging directory, check integrity/version, set strict policy and retain local backend, then enable app without creating a provider |
 | apply | Verify mounted secret/CA byte hashes, import the public CA only if absent, configure separately approved private HTTP and create only a missing deny-all provider. Existing providers must match the supplied numeric ID; no updates/adoption/secret rotation |
 | activate | Require reviewed `own-client-role-jit-v1` provisioning and client-ready evidence, verify trusted exact discovery/endpoints/S256/JWKS, then change only the login-role whitelist |
+| display-name | Set only an unset display-name mapping to `name`, verify every other provider field unchanged; account IDs and backend remain untouched |
 | grant-admin | Verify provider/hash identity, existing user_oidc backend and an actual direct owner grant on the canonical owned Keycloak client, then add only that OIDC user to native admin |
 | remove-subject | Disable only the verified hashed OIDC user, remove its native admin membership, delete its Nextcloud authentication tokens and verify none remain; retries resume after interruption |
 | resume-subject | Verify an actual direct household/owner client grant, require no native admin membership, then enable only that OIDC account. Admin grant remains separate |
@@ -81,6 +83,21 @@ provider deletion, recovery change or credential rotation occurs. Client rollbac
 alone does not revoke existing Nextcloud sessions/app passwords; keep a reviewed
 subject roster and measure actual revocation behavior in live acceptance.
 
+## Readable display name without identity linking
+
+The dedicated Keycloak client emits only the full-name `name` claim in its ID
+token, alongside the existing subject, audience and own-client roles. It does not
+add profile/email scopes. Keep `mappingUid=sub` and `uniqueUid=true`: the opaque
+native UID remains the stable account identifier, not the display label.
+
+New providers explicitly select `--mapping-display-name=name`. For an existing
+provider with no display mapping, use operation `display-name` with
+`nextcloud-native-display-name-v1` approval after the separately approved client
+name-claim upgrade. It accepts only unset or exact `name`, preserves all other
+provider fields and creates/renames/links no users. A nonempty foreign mapping is
+refused. The readable label is refreshed on the next actual SSO login; no operator
+impersonation or account recreation is needed.
+
 ## Verification limits
 
 Actual Ansible runs against synthetic kubectl/occ and HTTPS Keycloak fixtures
@@ -92,7 +109,8 @@ Pod/CNI/NAT behavior, native account/session revocation, image execution and pai
 backup/restore still need independently approved acceptance. Do not import household
 data based on offline passes.
 
-The callback path defaults to `/index.php/apps/user_oidc/code`. If actual native
+The generic callback path defaults to `/index.php/apps/user_oidc/code`; the physical
+operator example explicitly selects the browser-verified `/apps/user_oidc/code`. If actual native
 routing uses pretty URLs, explicitly review `/apps/user_oidc/code` instead via
 `nextcloud_sso_callback_path` in BOTH client and native inputs. Only these two
 exact paths are accepted, never a wildcard or both callbacks. During apply and
@@ -119,7 +137,8 @@ immutable subject for the direct owner role and separate native grant; no new
 identity, username/email linking or inferred platform-group mapping. Keep the
 existing local Nextcloud admin unchanged for independent recovery. Native subject
 operations check its exact user ID, Database backend, enabled state and admin
-membership before and after the operation. They do not compare unrelated
+membership before and after the operation, and preserve its complete group set
+while allowing group reordering. They do not compare unrelated
 `user:info` metadata (for example usage, last-seen or display fields) for equality.
 A failed final verification does not undo a subject mutation already performed;
 inspect current state before retrying. Live acceptance
@@ -147,8 +166,8 @@ a provider, allow private HTTP, change recovery login, create credentials or gra
 Before selecting a new app release, separately review and publish the matching
 tenant policy, then approve its exact application. Deliver the private pull Secret,
 `nextcloud-oidc` and `nextcloud-oidc-ca` using approved operator-owned inputs; never
-reuse a publisher token or commit credentials. Those inputs do not currently exist
-in the live namespace. Do not select this image before all three are verified.
+reuse a publisher token or commit credentials. Verify all three inputs in the
+selected live namespace before selecting the image; do not infer presence from Git.
 Select the released app through enrollment/platform pins, not a live-only image patch.
 The retained database/files claims, UID33, database TLS, web/cron budgets, local admin
 and current network boundary are unchanged by this source candidate.

@@ -148,3 +148,22 @@ class NativeLifecycle(unittest.TestCase):
         self.assertTrue(self.s['users'][UID]['enabled'])
         self.assertNotIn('admin',self.s['users'][UID]['groups'])
         self.run_play('grant-admin',success=False)
+
+    def test_name_mapping_upgrade_is_explicit_and_preserves_identity(self):
+        self.prepared()
+        self.s['providers'][0]['settings']['mappingDisplayName']='';self.save()
+        before=copy.deepcopy(self.s['providers'][0]);users=copy.deepcopy(self.s['users']);n=len(self.s['writes'])
+        self.run_play('inspect',success=False)
+        self.assertEqual(len(self.s['writes']),n)
+        self.run_play('display-name',check=True)
+        self.assertEqual(self.s['providers'][0],before)
+        self.run_play('display-name')
+        expected=copy.deepcopy(before);expected['settings']['mappingDisplayName']='name'
+        self.assertEqual(self.s['providers'][0],expected)
+        self.assertEqual(self.s['users'],users)
+        self.assertEqual(len(self.s['writes']),n+1)
+        self.assertIn('changed=0',self.run_play('display-name').stdout)
+        self.run_play('inspect')
+        self.s['providers'][0]['settings']['mappingDisplayName']='email';self.save();n=len(self.s['writes'])
+        self.run_play('display-name',success=False)
+        self.assertEqual(len(self.s['writes']),n)

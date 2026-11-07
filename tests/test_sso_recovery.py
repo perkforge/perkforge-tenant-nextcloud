@@ -56,3 +56,8 @@ class RecoveryGuard(unittest.TestCase):
             for stage in ('before','after'):
                 with self.subTest(field=field,stage=stage):
                     self.run_guards(**{stage:record},success=False)
+
+    def test_non_admin_group_addition_or_removal_is_rejected(self):
+        for groups in (['admin'], ['admin','other','unexpected']):
+            with self.subTest(groups=groups):
+                self.run_guards(after=self.record | {'groups':groups},success=False)
