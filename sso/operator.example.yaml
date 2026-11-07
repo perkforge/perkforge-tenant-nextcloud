@@ -28,5 +28,6 @@ nextcloud_ca_file: /UNCONFIGURED/public-ca.pem
 nextcloud_ca_sha256: UNCONFIGURED
 nextcloud_secret_sha256: UNCONFIGURED
 
-nextcloud_sso_callback_path: /index.php/apps/user_oidc/code
+# Physical routing uses this exact browser-verified callback. Keep both operators identical.
+nextcloud_sso_callback_path: /apps/user_oidc/code
 nextcloud_sso_origin: https://nextcloud.example.invalid

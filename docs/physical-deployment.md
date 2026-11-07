@@ -1,14 +1,13 @@
 # Physical Nextcloud pilot and cron correction
 
 The supported path is `gitops/clusters/local`, composed from `gitops/base`.
-Released v1.0.3 supplies the disabled same-Pod correction. This later candidate
-opts into its guarded UID33 runner only after the disabled rollout, released
-policy and bounded same-Pod acceptance pass. It adds one same-image container
+The source supplies the guarded UID33 same-Pod cron runner. Its selection
+requires the reviewed tenant policy and bounded same-Pod acceptance checks. It adds one same-image container
 with 25m/64Mi requests and 250m/128Mi limits; files, database and retained claims
 stay unchanged. Publication alone does not promote the pinned enrollment.
 The old `bundles/` inputs and VM operations evidence are
 historical; they are preserved unchanged, not a second supported deployment path.
-This proposal deploys a fresh empty instance, not a migration or an import.
+The initial pilot deployed a fresh instance, not a migration or an import.
 Corey will guide household data housecleaning after deployment; do not mount,
 scan, copy, reorganize or import household files as part of activation.
 
@@ -39,7 +38,8 @@ Do not claim a real isolated tenant until those foundations and live positive/
 negative tests pass. No foundation manifests are hidden in the application chart.
 CNPG needs instance-manager access to Kubernetes; denying all API access to every
 Pod would break it. Grant only its observed requirements, not app token access.
-No public ingress, router forwarding, SSO, Redis or external storage is enabled.
+This foundation does not authorize public ingress, router forwarding, Redis or
+external storage. SSO has its own approved lifecycle in [sso/README.md](../sso/README.md).
 
 ## Owner administration and tenant isolation
 
@@ -69,14 +69,12 @@ username/password is guessed or copied from the historical VM. Keep tested local
 admin recovery available; changing the bootstrap Secret is not an existing-user
 password-reset mechanism.
 
-SSO is intentionally absent from this pilot. A later reviewed integration must
-select/pin its supported Nextcloud OIDC/SAML app, create the scoped Keycloak client,
-and explicitly configure and test subject/group/admin mapping. Existing
+SSO uses the separately gated [native lifecycle](../sso/README.md). Existing
 `/platform/admins` access to Kubernetes/Rancher does **not** automatically grant
-Nextcloud application admin. Test Corey's intended admin mapping and an ordinary
-household user's non-admin access separately before relying on SSO. Retain local
-recovery access through that change; no global identity or admin grants are changed
-by deploying an isolated tenant.
+Nextcloud admin. Verify exact immutable subject and provider identity, direct
+own-client role, and actual SSO account before a separately approved native admin
+grant. Retain local recovery and independently test it. Household enrollment and
+ordinary-access/admin-denial acceptance remain separate gates.
 
 The data HelmRelease owns only the retained CNPG Cluster. The app release owns
 the retained files PVC alongside its consuming Deployment, using the existingClaim
@@ -134,7 +132,8 @@ The physical pilot initialized and passed trusted HTTPS, database TLS and a
 synthetic WebDAV round trip on 2026-11-06. A bounded one-off separate-Pod cron
 Job completed successfully, but the web container then returned filesystem
 permission errors and HTTP403/503. It recovered after one automatic container
-restart. Recurring cron remains paused in the selected live release.
+restart. Recurring cron was paused at that historical checkpoint; this is not a
+statement of the current release selection. The supported same-Pod path follows.
 
 The leading diagnosis is a shared-PVC SELinux label conflict between separate
 Pods: equal UID/GID and same-node affinity do not give two Pods the same MCS
@@ -295,9 +294,10 @@ reference, retained data and rejection of an unselected storage class. They do
 not contact Kubernetes or prove controller admission, isolation, storage capacity,
 upstream image availability, database TLS or backup/recovery success.
 
-## SSO image rollout candidate
+## SSO image and gated operations
 
-See [the SSO procedure](../sso/README.md#published-image-rollout-candidate). This
-source proposes the published private image and read-only inputs. Existing live
-release pins remain unchanged; matching tenant policy, approved credential delivery
-and separate release selection must precede rollout. No provider or login is enabled.
+See [the SSO procedure](../sso/README.md#published-image-rollout-candidate). The
+source selects the published private image and read-only inputs. Matching tenant
+policy, approved input delivery and enrollment release selection must precede
+rollout. Image selection alone does not enable a provider or login; use the
+separately approved native lifecycle and verify live state before each operation.

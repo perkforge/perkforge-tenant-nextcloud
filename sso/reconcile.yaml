@@ -50,7 +50,7 @@
     block:
     - ansible.builtin.assert:
         that:
-        - nextcloud_native_operation in ['inspect','prepare','apply','activate','rollback','grant-admin','remove-subject','resume-subject']
+        - nextcloud_native_operation in ['inspect','prepare','apply','activate','rollback','grant-admin','remove-subject','resume-subject','display-name']
         - nextcloud_native_approval == 'nextcloud-native-' + nextcloud_native_operation + '-v1'
         - nextcloud_recovery_verified | bool
         - nc_deny == '/^(?!)$/' and nc_allow == '/^(household|owner)$/'
@@ -110,12 +110,13 @@
       register: nc_recovery
     - ansible.builtin.assert:
         that:
+        - (nc_recovery.stdout | from_json).user_id == nextcloud_recovery_user
         - (nc_recovery.stdout | from_json).backend == 'Database'
         - (nc_recovery.stdout | from_json).enabled
         - "'admin' in (nc_recovery.stdout | from_json).groups"
     - ansible.builtin.include_tasks: native-prepare.yaml
       when: nextcloud_native_operation == 'prepare'
     - ansible.builtin.include_tasks: native-provider.yaml
-      when: nextcloud_native_operation in ['inspect','apply','activate','rollback','grant-admin','remove-subject','resume-subject']
+      when: nextcloud_native_operation in ['inspect','apply','activate','rollback','grant-admin','remove-subject','resume-subject','display-name']
     - ansible.builtin.include_tasks: native-subject.yaml
       when: nextcloud_native_operation in ['grant-admin','remove-subject','resume-subject']

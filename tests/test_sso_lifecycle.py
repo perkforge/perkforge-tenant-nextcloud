@@ -35,6 +35,10 @@ class NativeLifecycle(unittest.TestCase):
                   'nextcloud_image':IMAGE,'nextcloud_sso_issuer':'https://identity.example.test/auth/realms/perkforge',
                   'nextcloud_sso_origin':'https://files.example.test','nextcloud_recovery_user':'recovery','nextcloud_ca_sha256':'b'*64,'nextcloud_secret_sha256':'c'*64,
                   'nextcloud_private_http_approval':'oidc-private-issuer-egress-v1', 'nextcloud_subject':SUB}
+        from test_sso_browser_callback import LoginFixture
+        self.login = LoginFixture(self.d)
+        self.addCleanup(self.login.close)
+        self.v.update(nextcloud_sso_origin=self.login.origin, nextcloud_ca_file=str(self.login.ca))
     def save(self):self.state.write_text(json.dumps(self.s))
     def run_play(self, op='inspect', extra=None, check=False, success=True):
         v={**self.v,'nextcloud_native_operation':op,'nextcloud_native_approval':'nextcloud-native-'+op+'-v1',**(extra or {})}
@@ -74,6 +78,18 @@ class NativeLifecycle(unittest.TestCase):
         self.s['bad_discovery']=True;self.save()
         self.run_play('activate',extra={'nextcloud_client_ready':True,'nextcloud_provisioning_approval':'own-client-role-jit-v1'},success=False)
         self.assertEqual(len(self.s['writes']),before)
+    def test_browser_callback_mismatch_blocks_activation(self):
+        self.prepared()
+        self.login.path = '/apps/user_oidc/code'
+        before = len(self.s['writes'])
+        self.run_play('activate', extra={'nextcloud_client_ready':True,
+                      'nextcloud_provisioning_approval':'own-client-role-jit-v1'}, success=False)
+        self.assertEqual(len(self.s['writes']), before)
+        self.assertEqual(self.s['providers'][0]['settings']['groupWhitelistRegex'], '/^(?!)$/')
+        self.run_play('activate', extra={'nextcloud_client_ready':True,
+                      'nextcloud_provisioning_approval':'own-client-role-jit-v1',
+                      'nextcloud_sso_callback_path':'/apps/user_oidc/code'})
+
     def test_interrupted_copy_and_foreign_config_refuse(self):
         self.s['interrupted_copy']=True;self.save()
         self.run_play('prepare',success=False)
@@ -118,6 +134,9 @@ class NativeLifecycle(unittest.TestCase):
         (self.d/'token').write_text('fixture-owner-token');(self.d/'token').chmod(0o600)
         self.v.update(nextcloud_sso_issuer='https://localhost:'+str(server.server_port)+'/auth/realms/perkforge',
                       nextcloud_client_uuid='nc-id',nextcloud_ca_file=str(self.d/'ca'),nextcloud_keycloak_token_file=str(self.d/'token'))
+        self.login.issuer = self.v['nextcloud_sso_issuer']
+        with (self.d/'ca').open('ab') as bundle:
+            bundle.write(self.login.ca.read_bytes())
         self.prepared();self.s['users'][UID]['groups']=[];self.save();before=len(self.s['writes'])
         self.run_play('grant-admin',success=False);self.assertEqual(len(self.s['writes']),before)
         values['role']='owner';values['clientId']='foreign'
@@ -129,3 +148,22 @@ class NativeLifecycle(unittest.TestCase):
         self.assertTrue(self.s['users'][UID]['enabled'])
         self.assertNotIn('admin',self.s['users'][UID]['groups'])
         self.run_play('grant-admin',success=False)
+
+    def test_name_mapping_upgrade_is_explicit_and_preserves_identity(self):
+        self.prepared()
+        self.s['providers'][0]['settings']['mappingDisplayName']='';self.save()
+        before=copy.deepcopy(self.s['providers'][0]);users=copy.deepcopy(self.s['users']);n=len(self.s['writes'])
+        self.run_play('inspect',success=False)
+        self.assertEqual(len(self.s['writes']),n)
+        self.run_play('display-name',check=True)
+        self.assertEqual(self.s['providers'][0],before)
+        self.run_play('display-name')
+        expected=copy.deepcopy(before);expected['settings']['mappingDisplayName']='name'
+        self.assertEqual(self.s['providers'][0],expected)
+        self.assertEqual(self.s['users'],users)
+        self.assertEqual(len(self.s['writes']),n+1)
+        self.assertIn('changed=0',self.run_play('display-name').stdout)
+        self.run_play('inspect')
+        self.s['providers'][0]['settings']['mappingDisplayName']='email';self.save();n=len(self.s['writes'])
+        self.run_play('display-name',success=False)
+        self.assertEqual(len(self.s['writes']),n)

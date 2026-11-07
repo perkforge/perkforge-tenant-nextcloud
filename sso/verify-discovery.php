@@ -10,11 +10,6 @@ if (!preg_match('~^https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/auth)?/realms/perkforge
 }
 define('OC_CONSOLE', 1);
 require_once '/var/www/html/lib/base.php';
-$callback = $argv[3] ?? '';
-$actualCallback = \OC::$server->get(\OCP\IURLGenerator::class)->linkToRouteAbsolute('user_oidc.login.code');
-if ($callback !== $actualCallback) {
-    throw new RuntimeException('Native callback URL differs from reviewed exact client callback');
-}
 $service = \OC::$server->get(\OCP\Http\Client\IClientService::class);
 $client = $service->newClient();
 $options = ['allow_redirects' => false, 'timeout' => 15];

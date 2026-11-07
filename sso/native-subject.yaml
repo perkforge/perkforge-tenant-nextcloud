@@ -126,4 +126,9 @@
   changed_when: false
   register: nc_recovery_after
 - ansible.builtin.assert:
-    that: nc_recovery_after.stdout | from_json == nc_recovery.stdout | from_json
+    that:
+    - (nc_recovery_after.stdout | from_json).user_id == nextcloud_recovery_user
+    - (nc_recovery_after.stdout | from_json).backend == 'Database'
+    - (nc_recovery_after.stdout | from_json).enabled
+    - "'admin' in (nc_recovery_after.stdout | from_json).groups"
+    - (nc_recovery_after.stdout | from_json).groups | unique | sort == (nc_recovery.stdout | from_json).groups | unique | sort

@@ -78,16 +78,19 @@ if op == 'user_oidc:providers':
     finish('\n'.join(json.dumps(x) for x in s['providers']))
 if op == 'user_oidc:provider':
     options = dict(x[2:].split('=',1) for x in c[2:])
-    supported = {'clientid','clientsecret-file','discoveryuri','scope','mapping-uid','unique-uid','mapping-groups','group-provisioning','group-restrict-login-to-whitelist','group-whitelist-regex','check-bearer','bearer-provisioning','resolve-nested-claims'}
+    supported = {'clientid','clientsecret-file','discoveryuri','scope','mapping-uid','mapping-display-name','unique-uid','mapping-groups','group-provisioning','group-restrict-login-to-whitelist','group-whitelist-regex','check-bearer','bearer-provisioning','resolve-nested-claims'}
     if set(options) - supported:
         finish('unknown upstream option', code=2)
     if not s['providers']:
         s['providers'] = [{'id': 1, 'identifier': c[1], 'clientId': options['clientid'], 'scope': options['scope'],
                           'discoveryEndpoint': options['discoveryuri'], 'settings': {
-                              'mappingUid':'sub','mappingGroups':'nextcloud_roles','uniqueUid':True,
+                              'mappingUid':'sub','mappingDisplayName':options.get('mapping-display-name',''),'mappingGroups':'nextcloud_roles','uniqueUid':True,
                               'restrictLoginToGroups':True,'groupProvisioning':False,'checkBearer':False,
                               'bearerProvisioning':False,'nestedAndFallbackClaims':False,'enrichLoginIdTokenWithUserinfo':False}}]
-    s['providers'][0]['settings']['groupWhitelistRegex'] = options['group-whitelist-regex']
+    if 'group-whitelist-regex' in options:
+        s['providers'][0]['settings']['groupWhitelistRegex'] = options['group-whitelist-regex']
+    if 'mapping-display-name' in options:
+        s['providers'][0]['settings']['mappingDisplayName'] = options['mapping-display-name']
     finish(write=True)
 if op == 'security:certificates:export':
     finish(s.get('trust',''))
