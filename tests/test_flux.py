@@ -127,7 +127,16 @@ class FluxContract(unittest.TestCase):
         claim = next(x for x in app if x['kind'] == 'PersistentVolumeClaim')
         self.assertEqual(claim['metadata']['annotations']['helm.sh/resource-policy'], 'keep')
         self.assertEqual(claim['spec']['storageClassName'], 'longhorn-dedicated')
-        self.assertEqual(claim['spec']['resources']['requests']['storage'], '32Gi')
+        self.assertEqual(claim['spec']['resources']['requests']['storage'], '128Gi')
+        # Expansion must change only the existing retained PVC request, not its
+        # identity, consumer Pod template, credentials, database or other objects.
+        previous_app = render(chart, 'gitops/base/app-values.yaml',
+                              'gitops/clusters/local/app-values.yaml',
+                              ['--set', 'filesStorage.size=32Gi'])
+        previous_claim = next(x for x in previous_app if x['kind'] == 'PersistentVolumeClaim')
+        self.assertEqual(previous_claim['spec']['resources']['requests']['storage'], '32Gi')
+        previous_claim['spec']['resources']['requests']['storage'] = '128Gi'
+        self.assertEqual(app, previous_app)
         db = next(x for x in data if x['kind'] == 'Cluster')
         self.assertEqual(db['spec']['storage']['storageClass'], 'longhorn-dedicated')
         self.assertFalse(db['spec']['enableSuperuserAccess'])

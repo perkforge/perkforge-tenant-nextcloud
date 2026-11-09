@@ -25,5 +25,6 @@ ingress:
   - secretName: nextcloud-tls
     hosts: [nextcloud.perkforge.home.arpa]
 
-# Proposed request, not measured capacity. Created with its first consumer.
-filesStorage: {storageClass: longhorn-dedicated, size: 32Gi}
+# Expansion candidate: apply the reviewed 144Gi quota/admission foundation first.
+# Publish and promote through enrollment Git; never shrink an expanded claim.
+filesStorage: {storageClass: longhorn-dedicated, size: 128Gi}
