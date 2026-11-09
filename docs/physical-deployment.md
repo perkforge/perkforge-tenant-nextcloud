@@ -30,7 +30,7 @@ A separate reviewed enrollment change is REQUIRED before activation:
 | Runtime identity | Default runtime ServiceAccount with `automountServiceAccountToken: false`; no app RBAC; CNPG instance-manager identity/RBAC reviewed separately |
 | Admission | Pin release names, source/chart refs, target/storage namespaces, service account and values inputs; deny remote kubeConfig, authority bypasses, alternate sources and unsafe workloads |
 | Network | Default deny ingress/egress; reviewed ingress-controller selector -> app TCP80; app/cron -> this DB TCP5432; DNS UDP/TCP53; CNPG operator -> instance manager TCP8000; database instance manager -> observed API endpoints only; no general internet or cross-tenant access |
-| Budget | Reviewed quota/LimitRange including 48Gi requested storage, 2 PVCs initially, web/DB/cron plus transient Jobs and rollout headroom; CNPG-generated objects need explicit allowlists |
+| Budget | Reviewed quota/LimitRange including 144Gi requested storage for the expansion candidate, 2 PVCs initially, web/DB/cron plus transient Jobs and rollout headroom; CNPG-generated objects need explicit allowlists |
 | Credentials | Preexisting `nextcloud-admin` and `nextcloud-db-app` username/password Secrets in runtime namespace; immutable/persisted credentials via approved secret workflow; TLS `nextcloud-tls` with private LAN hostname SAN and trusted client chain |
 | Controllers | Healthy Flux source/helm/kustomize controllers and reviewed CNPG operator/CRDs; no tenant installation of cluster-wide operators |
 
@@ -110,7 +110,7 @@ replica health across workers, scheduling labels, measured capacity and reserved
 headroom budgets. Class existence alone is insufficient. With allocation approved,
 verify BOTH newly created file/database volumes' replicas actually reside on the
 accepted dedicated SSD disks; do not accept class-name matching as placement proof.
-The 32Gi files and 16Gi database requests are proposed PVC budgets, not observations
+The 128Gi files and unchanged 16Gi database requests are proposed PVC budgets, not observations
 of disks or usable capacity. Replication, snapshot space, existing workloads and
 rebuild headroom consume additional capacity. Keep both HelmReleases suspended
 and STOP before allocation if the reviewed tier is missing or unaccepted. Do not
@@ -125,6 +125,39 @@ binding, app waits for data, binding waits for app). Keep install/upgrade waits
 enabled; the database-only release has its own CNPG-managed consumer. See
 [Kubernetes binding semantics](https://kubernetes.io/docs/concepts/storage/storage-classes/#volume-binding-mode)
 and [Flux Helm waits/dependencies](https://fluxcd.io/flux/components/helm/helmreleases/).
+
+### Files expansion candidate: 32Gi to 128Gi
+
+This source changes only the existing `nextcloud-files` PVC request to `128Gi`.
+It retains the claim name, `longhorn-dedicated` class, RWO access, keep annotation,
+consumer Pod template, image and credentials. PostgreSQL stays at `16Gi`.
+The paired enrollment change must raise both namespace storage quota keys to
+`144Gi` and admit the bounded 32Gi-to-128Gi transition before this app is promoted.
+The policy keeps the currently selected 32Gi source compatible but rejects a
+128Gi-to-32Gi downgrade. Never delete/recreate a claim or weaken policy to roll back.
+
+For a separately approved rollout, verify fresh Longhorn health and measured
+free/scheduled space on both actual dedicated replica disks. The 96Gi logical
+increase needs 96Gi additional scheduled capacity on each of two replicas; account
+for snapshots, reserves and rebuild headroom. Confirm `allowVolumeExpansion: true`
+on the exact class, and a recoverable paired backup before changing protected data.
+Quota is an allocation ceiling, not independent backup or measured usable capacity.
+
+Merge/release the reviewed app and enrollment foundation separately. Foundation
+is operator-applied, not selected by `clusters/local-nextcloud`: review and apply
+only the quota and files admission changes from a verified published enrollment
+release before promoting the app. Verify published tags, then update enrollment's
+app pin/evidence and platform's enrollment pin in later reviewed releases. Do not
+invent future tags, activate this feature branch, or change live pins here.
+
+After authorized promotion, verify the original PVC/PV identities, `128Gi` request
+and capacity, filesystem expansion, two healthy dedicated replicas, web/cron and
+synthetic file retention, unchanged 16Gi database and quota use `144Gi` of `144Gi`.
+No Pod restart is part of this source change. If filesystem expansion is pending,
+preserve resources and diagnose; any required disruption needs separate approval.
+Once expanded, fix forward at 128Gi or greater under new review. A source rollback
+must retain the expanded storage request; Kubernetes does not support PVC shrink.
+Backup/restore acceptance and household import remain separate gates.
 
 ### Cron correction after pilot acceptance
 
@@ -233,7 +266,8 @@ reattachment and recovery separately after storage acceptance.
 
 No merge, publication, offline build or successful CI authorizes these live steps.
 
-The 32Gi files/16Gi database claims are an empty pilot. At review worker-1 had
+The initial 32Gi files/16Gi database claims were an empty pilot; this candidate
+expands only files to 128Gi. At review worker-1 had
 280m CPU unreserved and worker-2 1420m; each has six CPUs and about 15.2GiB
 allocatable memory. Web/database request 250m/576Mi combined plus 25m/64Mi during
 cron. Local affinity prefers worker-2 while retaining worker-1 as eligible; cron
