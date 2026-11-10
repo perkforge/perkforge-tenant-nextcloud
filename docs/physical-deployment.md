@@ -3,7 +3,7 @@
 The supported path is `gitops/clusters/local`, composed from `gitops/base`.
 The source supplies the guarded UID33 same-Pod cron runner. Its selection
 requires the reviewed tenant policy and bounded same-Pod acceptance checks. It adds one same-image container
-with 25m/64Mi requests and 250m/128Mi limits; files, database and retained claims
+with 25m/128Mi requests and 250m/256Mi limits; files, database and retained claims
 stay unchanged. Publication alone does not promote the pinned enrollment.
 The old `bundles/` inputs and VM operations evidence are
 historical; they are preserved unchanged, not a second supported deployment path.
@@ -145,7 +145,7 @@ database, credentials and retained storage are unchanged. The changed
 so Apache reloads the subPath-mounted ConfigMap on separately approved activation.
 
 With the existing cron and database budgets, namespace memory requests total
-768Mi and limits 1472Mi, within the observed 1536Mi/2Gi quotas. Recheck live quotas
+832Mi and limits 1600Mi, within the observed 1536Mi/2Gi quotas. Recheck live quotas
 and node headroom before activation: worker-2 had about 95% of CPU requests
 allocated and memory limits above allocatable at inspection. Low instantaneous
 usage is not reserved capacity. No quota, CPU, security-foundation or source-pin
@@ -224,6 +224,25 @@ exec Role, fixed SELinux label, privilege, host mount or host policy is added.
 A hung or failed runner still needs log monitoring; HTTP readiness alone does
 not prove background-job progress. Stopping the Pod stops both writers, and a
 maintenance/restore still requires explicit quiescence.
+
+The cron memory candidate raises only its request from 64Mi to 128Mi and limit
+from 128Mi to 256Mi. PHP's unchanged 96MiB limit covers its managed heap, not all
+process, extension and container memory. Imported-file metadata processing can
+exceed the old container cap without a PHP memory-limit error. CPU stays
+25m/250m; this is bounded headroom to validate, not general capacity acceptance.
+With web and database, requests total 832Mi and limits 1600Mi; recheck those
+against enrollment quota and node reservations before any separately approved
+activation. No quota, admission, storage or image change belongs in this candidate.
+
+The resource change rolls the shared web/cron Pod with Recreate. Wait for active
+transfer and readback operations to stop before activation. Preserve both local
+source copies and retained claims. Afterward require two successful cron cycles,
+metadata-backlog progress, stable HTTP readiness, zero new OOMs/restarts and
+verified retained-file checksums before a separately approved import resume.
+Interrupted queued metadata jobs may have been removed before execution; check
+metadata completeness separately from file hashes. Do not blindly scan or rerun
+all jobs. A separately approved rollback also interrupts the Pod and restores the
+smaller memory cap; it does not repair incomplete metadata or authorize import.
 
 Before selecting this enabled candidate, publish and apply the separately
 reviewed enrollment policy allowing only the existing web container plus the
@@ -305,7 +324,7 @@ The initial 32Gi files/16Gi database claims were an empty pilot; this candidate
 expands only files to 128Gi. Each worker has six CPUs and about 15.2GiB
 allocatable memory; recheck current reservations rather than relying on prior
 headroom. This candidate's web/database request 250m/704Mi combined plus
-25m/64Mi for the cron sidecar. Local affinity prefers worker-2 while retaining
+25m/128Mi for the cron sidecar. Local affinity prefers worker-2 while retaining
 worker-1 as eligible; cron
 still requires the web node. Recheck CI/rollout headroom before activation. Low
 instantaneous CPU usage is not reserved capacity. The two-worker candidate above
