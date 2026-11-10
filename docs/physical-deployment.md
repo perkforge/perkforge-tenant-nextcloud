@@ -90,8 +90,9 @@ authority; namespace-only RBAC alone is insufficient isolation.
 `gitops/clusters/local` selects only the private hostname/ingress, prepared worker
 label, logical node preference and pilot storage requests. It contains no disk
 paths, UUIDs or physical IP addresses. The shared values retain restricted UID33 initialization,
-serial Apache profile, Recreate/RWO strategy and non-overlapping five-minute cron.
-This remains a low-concurrency starting profile, not accepted household capacity.
+bounded two-worker Apache profile, Recreate/RWO strategy and non-overlapping
+five-minute cron. This remains a low-concurrency starting profile, not accepted
+household capacity.
 
 The local selection requires `longhorn-dedicated`, accepted on the physical cluster
 at platform v0.19.0 (`31128eff057217a7da740cd82c7c26547f6fdb62`). The guarded
@@ -125,6 +126,40 @@ binding, app waits for data, binding waits for app). Keep install/upgrade waits
 enabled; the database-only release has its own CNPG-managed consumer. See
 [Kubernetes binding semantics](https://kubernetes.io/docs/concepts/storage/storage-classes/#volume-binding-mode)
 and [Flux Helm waits/dependencies](https://fluxcd.io/flux/components/helm/helmreleases/).
+
+### Bounded upload concurrency candidate
+
+The one-worker profile can block `/status.php` behind a long upload. Read-only
+inspection on 2026-11-10 found intermittent five-second readiness/liveness
+header timeouts, but no container restarts or cgroup/Prometheus OOM events.
+Cache-inclusive memory approached the 512Mi cap; sampled working memory peaked
+around 233Mi. These observations support worker contention, not an OOM diagnosis;
+they do not establish the duration of an outage or prove every upload error's cause.
+
+This source raises `ServerLimit` and `MaxRequestWorkers` to 2, the app memory
+request from 384Mi to 512Mi and its limit from 512Mi to 1Gi. CPU remains
+150m/750m, PHP remains 192M with a 64Mi opcode cache, uploads remain 256M, and
+KeepAlive stays Off. Probe timing, one replica, Recreate/RWO, image, cron,
+database, credentials and retained storage are unchanged. The changed
+`platform.perkforge.io/apache-profile` annotation forces a pod-template rollout
+so Apache reloads the subPath-mounted ConfigMap on separately approved activation.
+
+With the existing cron and database budgets, namespace memory requests total
+768Mi and limits 1472Mi, within the observed 1536Mi/2Gi quotas. Recheck live quotas
+and node headroom before activation: worker-2 had about 95% of CPU requests
+allocated and memory limits above allocatable at inspection. Low instantaneous
+usage is not reserved capacity. No quota, CPU, security-foundation or source-pin
+change belongs in this app-only candidate.
+
+Publish/review the app source, then select its reviewed release through enrollment
+Git only with separate activation approval. Wait until transfers finish before the
+single-replica Recreate rollout. Afterward test one approved synthetic large upload
+while requesting browser pages and `/status.php`; verify upload checksum, probes,
+readiness, restarts, OOM counters and memory/CPU. Two long concurrent requests can
+still exhaust both workers; this is not general multi-user capacity acceptance.
+Do not disable or relax probes to hide saturation. Rollback, if separately approved,
+restores the prior app/profile budgets and causes another brief Recreate interruption;
+retain the existing 128Gi files claim and never shrink or replace retained storage.
 
 ### Files expansion candidate: 32Gi to 128Gi
 
@@ -267,13 +302,14 @@ reattachment and recovery separately after storage acceptance.
 No merge, publication, offline build or successful CI authorizes these live steps.
 
 The initial 32Gi files/16Gi database claims were an empty pilot; this candidate
-expands only files to 128Gi. At review worker-1 had
-280m CPU unreserved and worker-2 1420m; each has six CPUs and about 15.2GiB
-allocatable memory. Web/database request 250m/576Mi combined plus 25m/64Mi during
-cron. Local affinity prefers worker-2 while retaining worker-1 as eligible; cron
+expands only files to 128Gi. Each worker has six CPUs and about 15.2GiB
+allocatable memory; recheck current reservations rather than relying on prior
+headroom. This candidate's web/database request 250m/704Mi combined plus
+25m/64Mi for the cron sidecar. Local affinity prefers worker-2 while retaining
+worker-1 as eligible; cron
 still requires the web node. Recheck CI/rollout headroom before activation. Low
-instantaneous CPU usage is not reserved capacity. Keep the serial Apache/256M
-upload profile initially and measure photo/video behavior before increasing it.
+instantaneous CPU usage is not reserved capacity. The two-worker candidate above
+retains the 256M upload limit and still requires measured photo/video acceptance.
 Expand before household import only after accounting for database, snapshots,
 growth and any future existing-volume migration in the important-data budget.
 Single-excess storage is not selected by this application.
