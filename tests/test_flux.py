@@ -76,6 +76,16 @@ class FluxContract(unittest.TestCase):
                 'timeoutSeconds': 5, 'failureThreshold': failures, 'successThreshold': 1,
             })
 
+    def test_cron_memory_profile(self):
+        cron = load('gitops/base/app-values.yaml')['cronjob']['sidecar']
+        self.assertEqual(cron['resources'], {
+            'requests': {'cpu': '25m', 'memory': '128Mi'},
+            'limits': {'cpu': '250m', 'memory': '256Mi'},
+        })
+        # The container needs headroom beyond the PHP-managed heap.
+        self.assertIn('php -d memory_limit=96M -f /var/www/html/cron.php',
+                      cron['command'][-1])
+
     def test_render_pinned_chart(self):
         chart = os.environ.get('NEXTCLOUD_CHART')
         self.assertTrue(chart, 'Set NEXTCLOUD_CHART to the verified upstream 9.4.1 chart directory/archive')
@@ -135,7 +145,22 @@ class FluxContract(unittest.TestCase):
         self.assertEqual(cron['securityContext']['runAsUser'], 33)
         self.assertFalse(cron['securityContext']['allowPrivilegeEscalation'])
         self.assertEqual(cron['securityContext']['capabilities']['drop'], ['ALL'])
-        self.assertEqual(cron['resources']['limits']['memory'], '128Mi')
+        self.assertEqual(cron['resources'], {
+            'requests': {'cpu': '25m', 'memory': '128Mi'},
+            'limits': {'cpu': '250m', 'memory': '256Mi'},
+        })
+        # Reverting the memory values must change only those two rendered fields.
+        previous_cron_app = render(chart, 'gitops/base/app-values.yaml',
+                                  'gitops/clusters/local/app-values.yaml', [
+                                      '--set', 'cronjob.sidecar.resources.requests.memory=64Mi',
+                                      '--set', 'cronjob.sidecar.resources.limits.memory=128Mi',
+                                  ])
+        previous_deploy = next(x for x in previous_cron_app if x['kind'] == 'Deployment')
+        previous_cron = next(c for c in previous_deploy['spec']['template']['spec']['containers']
+                             if c['name'] == 'nextcloud-cron')
+        previous_cron['resources']['requests']['memory'] = '128Mi'
+        previous_cron['resources']['limits']['memory'] = '256Mi'
+        self.assertEqual(app, previous_cron_app)
         command = cron['command'][-1]
         self.assertNotIn('/cron.sh', command)
         self.assertIn('timeout --signal=TERM --kill-after=10s 900s', command)
