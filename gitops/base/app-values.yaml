@@ -170,10 +170,10 @@ persistence:
 resources:
   requests:
     cpu: 150m
-    memory: 384Mi
+    memory: 512Mi
   limits:
     cpu: 750m
-    memory: 512Mi
+    memory: 1Gi
 service:
   type: ClusterIP
   port: 8080
@@ -260,7 +260,7 @@ livenessProbe:
   failureThreshold: 5
   successThreshold: 1
 podAnnotations:
-  platform.perkforge.io/apache-profile: serial-no-keepalive-v1
+  platform.perkforge.io/apache-profile: two-worker-no-keepalive-v1
 extraManifests:
 - apiVersion: v1
   kind: ConfigMap
@@ -273,9 +273,9 @@ extraManifests:
 
       MaxSpareServers 1
 
-      ServerLimit 1
+      ServerLimit 2
 
-      MaxRequestWorkers 1
+      MaxRequestWorkers 2
 
       MaxConnectionsPerChild 500
 

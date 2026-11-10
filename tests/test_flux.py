@@ -40,6 +40,42 @@ class FluxContract(unittest.TestCase):
         self.assertNotIn('cks-worker', built)
         self.assertNotIn('local-path', built)
 
+    def test_upload_worker_profile(self):
+        values = load('gitops/base/app-values.yaml')
+        self.assertEqual(values['resources'], {
+            'requests': {'cpu': '150m', 'memory': '512Mi'},
+            'limits': {'cpu': '750m', 'memory': '1Gi'},
+        })
+        apache = next(obj for obj in values['extraManifests']
+                      if isinstance(obj, dict) and obj['metadata']['name'] == 'nextcloud-apache-budget')
+        directives = dict(line.strip().split(None, 1)
+                          for line in apache['data']['mpm_prefork.conf'].splitlines() if line.strip())
+        self.assertEqual(directives, {
+            'StartServers': '1', 'MinSpareServers': '1', 'MaxSpareServers': '1',
+            'ServerLimit': '2', 'MaxRequestWorkers': '2',
+            'MaxConnectionsPerChild': '500', 'KeepAlive': 'Off',
+        })
+        # The subPath-mounted Apache config needs a changed pod template to load.
+        self.assertEqual(values['podAnnotations']['platform.perkforge.io/apache-profile'],
+                         'two-worker-no-keepalive-v1')
+        self.assertEqual(values['replicaCount'], 1)
+        self.assertEqual(values['nextcloud']['strategy'], {'type': 'Recreate'})
+        php = dict(line.strip().split('=', 1)
+                   for line in values['nextcloud']['phpConfigs']['zz-perkforge.ini'].splitlines()
+                   if line.strip())
+        self.assertEqual(php, {'memory_limit': '192M', 'upload_max_filesize': '256M',
+                              'post_max_size': '256M', 'opcache.memory_consumption': '64'})
+        env = {item['name']: item.get('value') for item in values['nextcloud']['extraEnv']}
+        self.assertEqual(env['PHP_MEMORY_LIMIT'], '192M')
+        self.assertEqual(env['PHP_UPLOAD_LIMIT'], '256M')
+        for name, delay, period, failures in [('startupProbe', 10, 10, 90),
+                                               ('readinessProbe', 0, 10, 3),
+                                               ('livenessProbe', 0, 30, 5)]:
+            self.assertEqual(values[name], {
+                'enabled': True, 'initialDelaySeconds': delay, 'periodSeconds': period,
+                'timeoutSeconds': 5, 'failureThreshold': failures, 'successThreshold': 1,
+            })
+
     def test_render_pinned_chart(self):
         chart = os.environ.get('NEXTCLOUD_CHART')
         self.assertTrue(chart, 'Set NEXTCLOUD_CHART to the verified upstream 9.4.1 chart directory/archive')
@@ -53,6 +89,29 @@ class FluxContract(unittest.TestCase):
         deploy = next(x for x in app if x['kind'] == 'Deployment')
         pod = deploy['spec']['template']['spec']
         self.assertEqual(deploy['spec']['strategy']['type'], 'Recreate')
+        self.assertEqual(deploy['spec']['replicas'], 1)
+        self.assertEqual(deploy['spec']['template']['metadata']['annotations'][
+            'platform.perkforge.io/apache-profile'], 'two-worker-no-keepalive-v1')
+        web = next(c for c in pod['containers'] if c['name'] == 'nextcloud')
+        self.assertEqual(web['resources'], {
+            'requests': {'cpu': '150m', 'memory': '512Mi'},
+            'limits': {'cpu': '750m', 'memory': '1Gi'},
+        })
+        self.assertIn({'name': 'apache-budget', 'mountPath': '/etc/apache2/mods-enabled/mpm_prefork.conf',
+                       'subPath': 'mpm_prefork.conf', 'readOnly': True}, web['volumeMounts'])
+        apache = next(obj for obj in app if obj['kind'] == 'ConfigMap'
+                      and obj['metadata']['name'] == 'nextcloud-apache-budget')
+        directives = dict(line.strip().split(None, 1)
+                          for line in apache['data']['mpm_prefork.conf'].splitlines() if line.strip())
+        self.assertEqual(directives['ServerLimit'], '2')
+        self.assertEqual(directives['MaxRequestWorkers'], '2')
+        self.assertEqual(directives['KeepAlive'], 'Off')
+        for name, period, failures in [('startupProbe', 10, 90),
+                                       ('readinessProbe', 10, 3), ('livenessProbe', 30, 5)]:
+            self.assertEqual(web[name]['httpGet']['path'], '/status.php')
+            self.assertEqual(web[name]['timeoutSeconds'], 5)
+            self.assertEqual(web[name]['periodSeconds'], period)
+            self.assertEqual(web[name]['failureThreshold'], failures)
         self.assertEqual(pod['nodeSelector'], {'storage.perkforge.io/worker': 'true'})
         self.assertTrue(any(x.get('persistentVolumeClaim', {}).get('claimName') == 'nextcloud-files' for x in pod['volumes']))
         for container in pod['containers'] + pod['initContainers']:
